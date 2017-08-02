@@ -15,30 +15,29 @@
 ### ---------------------------------------------------------------------------
 ### --- INPUT: 
 ### --- the WDCM_Process.R reads the ,tsv input files from:
-### --- https://analytics.wikimedia.org/datasets//WDCM/Search_Items_DataOUT/
+### --- https://analytics.wikimedia.org/datasets/WDCM/Search_Items_DataOUT/
 ### --- The data are actualy in:
 ### --- stat1003.eqiad.wmnet:22/a/published-datasets/WDCM/Search_Items_DataOUT/
 ### --- on the stat1003.eqiad.wmnet production server 
 ### ---------------------------------------------------------------------------
 ### --- OUTPUT: 
 ### ---------------------------------------------------------------------------
-
 ### ---------------------------------------------------------------------------
 ### --- GPL v2
-# This file is part of Wikidata Concepts Monitor (WDCM)
-# 
-# WDCM is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
-# (at your option) any later version.
-# 
-# WDCM is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-# 
-# You should have received a copy of the GNU General Public License
-# along with WDCM. If not, see <http://www.gnu.org/licenses/>.
+### ---------------------------------------------------------------------------
+### --- This file is part of Wikidata Concepts Monitor (WDCM)
+### --- WDCM is free software: you can redistribute it and/or modify
+### --- it under the terms of the GNU General Public License as published by
+### --- the Free Software Foundation, either version 2 of the License, or
+### --- (at your option) any later version.
+### ---
+### --- WDCM is distributed in the hope that it will be useful,
+### --- but WITHOUT ANY WARRANTY; without even the implied warranty of
+### --- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+### --- GNU General Public License for more details.
+### ---
+### --- You should have received a copy of the GNU General Public License
+### --- along with WDCM. If not, see <http://www.gnu.org/licenses/>.
 ### ---------------------------------------------------------------------------
 
 ### --- Setup
@@ -950,10 +949,337 @@ rm(wdcm_item_aspect); gc()
 
 
 ### ---------------------------------------------------------------------------
-### --- TOPIC MODEL: items x projects
+### --- TOPIC MODELS: items x projects in each semantic category
+# - get categories:
+con <- dbConnect(MySQL(), 
+                 host = "tools.labsdb", 
+                 defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                 dbname = "u16664__wdcm_p",
+                 user = mySQLCreds$user,
+                 password = mySQLCreds$password)
+q <- "SELECT DISTINCT(en_category) FROM wdcm_category_project;"
+res <- dbSendQuery(con, q)
+categories <- fetch(res, -1)
+dbClearResult(res)
+dbDisconnect(con)
+# - loop over categories:
+for (i in 1:length(categories$en_category)) {
+  
+  # - get per item and per project counts in category i:
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  q <- paste("SELECT en_id, en_project, SUM(en_count) AS en_freq FROM wdcm_datatable ",
+             "WHERE en_category = '",
+             categories$en_category[i],
+             "' GROUP BY en_id, en_project;",
+             sep = "")
+  res <- dbSendQuery(con, q)
+  itemCat <- fetch(res, -1)
+  dbClearResult(res)
+  dbDisconnect(con)
+  
+  # - wrangle for tf-idf application:
+  itemCat <- spread(itemCat,
+                    key = en_project,
+                    value = en_freq,
+                    fill = 0)
+  rownames(itemCat) <- itemCat$en_id
+  itemCat$en_id <- NULL
+  
+  # - apply tf-idf
+  # - eliminate empty projects, if any:
+  emptyProj <- which(colSums(itemCat) == 0)
+  if (length(emptyProj) > 0) {
+    itemCat[, -emptyProj]
+  }
+  numDocs <- dim(itemCat)[2]
+  # - sort wdcm_itemProject by tf-idf and select vocabulary:
+  sfInit(parallel = T, cpus = 8, type = "SOCK")
+  sfExport('itemCat', 'numDocs')
+  tfIdf <- sfApply(itemCat, 1, function(x) {
+    sum(x*log(numDocs/sum(x > 0)))
+  })
+  sfStop()
+  itemCat$tfIdf <- tfIdf
+  rm(tfIdf); gc()
+  itemCat <- itemCat[order(-itemCat$tfIdf), ]
+  
+  # - select top 100,000 tf-idf items - or how many are available 
+  if (dim(itemCat)[1] >= 100000) {
+    itemCat <- itemCat[1:100000, ]
+  }
+  itemCat$tfIdf <- NULL
+  
+  # - transpose itemCat:
+  itemCat <- t(itemCat)
+  
+  # - get vocabulary item labels:
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  q <- paste("SELECT en_id, en_label FROM wdcm_itemlabel ", 
+             "WHERE en_id IN (", 
+             paste("'", colnames(itemCat), "'", collapse = ", ", sep = ""),
+             ");",
+             sep = "")
+  rs <- dbSendQuery(con, 'set character set "utf8"')
+  res <- dbSendQuery(con, q)
+  itemLabel <- fetch(res, -1)
+  dbClearResult(res)
+  dbDisconnect(con)
+  # - match labels from itemLabel and itemCat
+  sfInit(parallel = T, cpus = 8, type = "SOCK")
+  sfExport('itemCat', 'itemLabel')
+  matchItemLabel <- sfLapply(itemLabel$en_id, function(x) {
+    which(colnames(itemCat) %in% x)
+  })
+  sfStop()
+  matchItemLabel <- unlist(matchItemLabel)
+  # - before match, check whether there are any duplicates in itemLabel$en_label
+  # - NOTE: duplicated labels - not descriptions - are legitimate in Wikidata
+  # - use make.unique() to create valid columnames
+  itemLabel$en_label <- make.unique(itemLabel$en_label)
+  # - now match itemCat and itemLabel$en_label
+  colnames(itemCat)[matchItemLabel] <- itemLabel$en_label
+  item_en_ids <- itemLabel$en_id
+  rm(itemLabel); gc()
+  
+  # - topic modeling:
+  itemCat <- as.simple_triplet_matrix(itemCat)
+  # - topic modeling w. {maptpx}
+  # - run on K = seq(2,20) semantic topics:
+  numTopics <- 2:20
+  topicModel <- maptpx::topics(itemCat,
+                               K = numTopics,
+                               shape = NULL,
+                               initopics = NULL,
+                               tol = 0.01,
+                               bf = T, 
+                               kill = 4,
+                               ord = TRUE,
+                               verb = 2)
+  rm(itemCat); gc()
+  
+  ### --- topic model tables
+  
+  wdcm_itemtopic <- as.data.frame(topicModel$theta)
+  colnames(wdcm_itemtopic) <- paste("topic", seq(1, dim(wdcm_itemtopic)[2]), sep = "")
+  wdcm_itemtopic$en_id[matchItemLabel] <- item_en_ids
+  wdcm_itemtopic$en_label <- rownames(wdcm_itemtopic)
+  
+  # - check whether paste('wdcm_itemtopic', categories$en_category[i], sep = "_") table exists:
+  # - create itemTopicFileName
+  itemTopicFileName <- paste('wdcm_itemtopic', categories$en_category[i], sep = "_")
+  checkTable <- which(st$tables %in% itemTopicFileName)
+  # - DROP wdcm_itemtopic if it exists
+  if (length(checkTable) == 1) {
+    con <- dbConnect(MySQL(), 
+                     host = "tools.labsdb", 
+                     defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                     dbname = "u16664__wdcm_p",
+                     user = mySQLCreds$user,
+                     password = mySQLCreds$password)
+    ### --- index names:
+    ixNames <- paste(itemTopicFileName, c('en_id', 'en_label'), sep = "_")
+    q <- paste("ALTER TABLE ",
+               itemTopicFileName, 
+               " DROP INDEX ",
+               ixNames[1],
+               ", DROP INDEX ",
+               ixNames[2],
+               ";",
+               sep = "");
+    res <- dbSendQuery(con, q)
+    dbClearResult(res)
+    q <- paste("DROP TABLE ", itemTopicFileName, ";", sep = "")
+    res <- dbSendQuery(con, q)
+    dbClearResult(res)
+    dbDisconnect(con)
+  }
+  # - create itemTopicFileName table:
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  q <- paste(
+    "CREATE TABLE ", itemTopicFileName," (",
+    paste(colnames(wdcm_itemtopic[1:(dim(wdcm_itemtopic)[2]-2)]), 
+          " DOUBLE PRECISION, ", 
+          sep = "", 
+          collapse = ""),
+    "en_id varchar(255) NOT NULL, en_label varchar(255));",
+    sep = ""
+  )
+  res <- dbSendQuery(con, q)
+  dbClearResult(res)
+  dbDisconnect(con)
+  # - created indexes on itemTopicFileName:
+  ### --- index names:
+  ixNames <- paste(itemTopicFileName, c('en_id', 'en_label'), sep = "_")
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  q <- paste("CREATE INDEX ", ixNames[1], " ON ", itemTopicFileName, " (en_id); ", sep = "")
+  res <- dbSendQuery(con, q)
+  dbClearResult(res)
+  q <- paste("CREATE INDEX ", ixNames[2], " ON ", itemTopicFileName, " (en_label); ", sep = "")
+  res <- dbSendQuery(con, q)
+  dbClearResult(res)
+  dbDisconnect(con)
+  # - populate itemTopicFileName:
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  dbWriteTable(conn = con,
+               name = itemTopicFileName,
+               value = wdcm_itemtopic,
+               row.names = F,
+               append = T)
+  dbDisconnect(con)
+  rm(wdcm_itemtopic); gc()
+  
+  ### --- wdcm_projecttopic
+  projectTopicFileName <- paste('wdcm_projecttopic', categories$en_category[i], sep = "_")
+  wdcm_projecttopic <- as.data.frame(topicModel$omega)
+  colnames(wdcm_projecttopic) <- paste("topic", seq(1, dim(wdcm_projecttopic)[2]), sep = "")
+  wdcm_projecttopic$project <- rownames(wdcm_projecttopic)
+  # - check whether wdcm_projecttopic table exists:
+  checkTable <- which(st$tables %in% projectTopicFileName)
+  # - DROP wdcm_projecttopic if it exists
+  if (length(checkTable) == 1) {
+    con <- dbConnect(MySQL(), 
+                     host = "tools.labsdb", 
+                     defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                     dbname = "u16664__wdcm_p",
+                     user = mySQLCreds$user,
+                     password = mySQLCreds$password)
+    ### --- index names:
+    ixNames <- paste(projectTopicFileName, 'ptix_en_id', sep = "_")
+    q <- paste("ALTER TABLE ",
+               projectTopicFileName, 
+               " DROP INDEX ",
+               ixNames[1],
+               ";",
+               sep = "");
+    res <- dbSendQuery(con, q)
+    dbClearResult(res)
+    q <- paste("DROP TABLE ", projectTopicFileName, ";", sep = "")
+    res <- dbSendQuery(con, q)
+    dbClearResult(res)
+    dbDisconnect(con)
+  }
+  # - create wdcm_projecttopic:
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  q <- paste(
+    "CREATE TABLE ", projectTopicFileName, " (",
+    paste(colnames(wdcm_projecttopic[1:(dim(wdcm_projecttopic)[2]-1)]), 
+          " DOUBLE PRECISION, ", 
+          sep = "", 
+          collapse = ""),
+    "project varchar(255) NOT NULL);",
+    sep = ""
+  )
+  res <- dbSendQuery(con, q)
+  dbClearResult(res)
+  dbDisconnect(con)
+  # - created indexes on wdcm_projecttopic:
+  ### --- index names:
+  ixNames <- paste(projectTopicFileName, 'ptix_en_id', sep = "_")
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  q <- paste("CREATE INDEX ", ixNames, " ON ", projectTopicFileName, " (project); ", sep = "")
+  res <- dbSendQuery(con, q)
+  dbClearResult(res)
+  dbDisconnect(con)
+  # - populate wdcm_projecttopic:
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  dbWriteTable(conn = con,
+               name = projectTopicFileName,
+               value = wdcm_projecttopic,
+               row.names = F,
+               append = T)
+  dbDisconnect(con)
+  rm(wdcm_projecttopic); gc()
+  
+}
 
-### --- topic model
+### --- write out wdcm_itemproject_* and wdcm_projecttopic_* tables
+### --- to /home/goransm/WMDE/WDCM/WDCM_RScripts/WDCM_Dashboard/data
+### --- to be used locally from the Dashboard by fread()
+# - get table names
+con <- dbConnect(MySQL(), 
+                 host = "tools.labsdb", 
+                 defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                 dbname = "u16664__wdcm_p",
+                 user = mySQLCreds$user,
+                 password = mySQLCreds$password)
+q <- "SHOW TABLES;"
+res <- dbSendQuery(con, q)
+tableNames <- fetch(res, -1)
+dbClearResult(res)
+dbDisconnect(con)
+# - select tables
+itemT <- which(grepl("wdcm_itemtopic_", tableNames$Tables_in_u16664__wdcm_p, fixed = T))
+projT <- which(grepl("wdcm_projecttopic_", tableNames$Tables_in_u16664__wdcm_p, fixed = T))
+tableNames <- tableNames$Tables_in_u16664__wdcm_p[c(itemT, projT)]
+# - to /home/goransm/WMDE/WDCM/WDCM_RScripts/WDCM_Dashboard/data
+setwd('/home/goransm/WMDE/WDCM/WDCM_RScripts/WDCM_Dashboard/data')
+for (i in 1:length(tableNames)) {
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  rs <- dbSendQuery(con, 'set character set "utf8"')
+  q <- paste("SELECT * FROM ",
+             tableNames[i], 
+             ";", 
+             sep = "")
+  res <- dbSendQuery(con, q)
+  dataSet <- fetch(res, -1)
+  dbClearResult(res)
+  dbDisconnect(con)
+  write.csv(dataSet, file = paste(tableNames[i], ".csv", sep = ""))
+  rm(dataSet); gc()
+}
+# - back to: setwd('/home/goransm/WMDE/WDCM/WDCM_RScripts')
+setwd('/home/goransm/WMDE/WDCM/WDCM_RScripts')
 
+
+
+
+###############################################################
+### - Old Model STARTS here(!)
 # - get counts per item
 con <- dbConnect(MySQL(), 
                  host = "tools.labsdb", 
@@ -1028,12 +1354,25 @@ q <- paste("SELECT en_id, en_label FROM wdcm_itemlabel ",
            paste("'", colnames(wdcm_itemProject), "'", collapse = ", ", sep = ""),
            ");",
            sep = "")
+rs <- dbSendQuery(con, 'set character set "utf8"')
 res <- dbSendQuery(con, q)
 itemLabel <- fetch(res, -1)
 dbClearResult(res)
 dbDisconnect(con)
-w <- match(colnames(wdcm_itemProject), itemLabel$en_id)
-colnames(wdcm_itemProject) <- itemLabel$en_label[w]
+# - match labels from itemLabel and wdcm_itemProject
+sfInit(parallel = T, cpus = 8, type = "SOCK")
+sfExport('wdcm_itemProject', 'itemLabel')
+matchItemLabel <- sfLapply(itemLabel$en_id, function(x) {
+  which(colnames(wdcm_itemProject) %in% x)
+})
+sfStop()
+matchItemLabel <- unlist(matchItemLabel)
+# - before match, check whether there are any duplicates in itemLabel$en_label
+# - NOTE: duplicated labels - not descriptions - are legitimate in Wikidata
+# - use make.unique() to create valid columnames
+itemLabel$en_label <- make.unique(itemLabel$en_label)
+# - now match wdcm_itemProject and itemLabel$en_label
+colnames(wdcm_itemProject)[matchItemLabel] <- itemLabel$en_label
 item_en_ids <- itemLabel$en_id
 rm(itemLabel); gc()
 # - topic modeling w. {maptpx}
@@ -1049,16 +1388,18 @@ topicModel <- maptpx::topics(wdcm_itemProject,
                              bf = T, 
                              kill = 4,
                              ord = TRUE,
-                             verb = 0)
+                             verb = 2)
 rm(wdcm_itemProject); gc()
 
 ### --- topic model tables
+
+
 
 ### --- wdcm_itemtopic
 
 wdcm_itemtopic <- as.data.frame(topicModel$theta)
 colnames(wdcm_itemtopic) <- paste("topic", seq(1, dim(wdcm_itemtopic)[2]), sep = "")
-wdcm_itemtopic$en_id <- item_en_ids
+wdcm_itemtopic$en_id[matchItemLabel] <- item_en_ids
 wdcm_itemtopic$en_label <- rownames(wdcm_itemtopic)
 
 # - check whether wdcm_itemtopic table exists:
@@ -1071,6 +1412,9 @@ if (length(checkTable) == 1) {
                    dbname = "u16664__wdcm_p",
                    user = mySQLCreds$user,
                    password = mySQLCreds$password)
+  q <- "ALTER TABLE wdcm_itemtopic DROP INDEX itix_en_id, DROP INDEX itix_en_label;"
+  res <- dbSendQuery(con, q)
+  dbClearResult(res)
   q <- "DROP TABLE wdcm_itemtopic;"
   res <- dbSendQuery(con, q)
   dbClearResult(res)
@@ -1189,4 +1533,191 @@ dbWriteTable(conn = con,
              append = T)
 dbDisconnect(con)
 rm(wdcm_projecttopic); gc()
+
+### --- wdcm_project_category_aspect
+
+# - check whether wdcm_project_category_aspect table exists:
+checkTable <- which(st$tables %in% "wdcm_project_category_aspect")
+# - DROP wdcm_project_category_aspect if it exists
+if (length(checkTable) == 1) {
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  q <- "DROP TABLE wdcm_project_category_aspect;"
+  res <- dbSendQuery(con, q)
+  dbClearResult(res)
+  dbDisconnect(con)
+}
+# - create wdcm_project_category_aspect:
+con <- dbConnect(MySQL(), 
+                 host = "tools.labsdb", 
+                 defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                 dbname = "u16664__wdcm_p",
+                 user = mySQLCreds$user,
+                 password = mySQLCreds$password)
+q <- "CREATE TABLE wdcm_project_category_aspect 
+          SELECT wdcm_datatable.en_project, wdcm_datatable.en_category, wdcm_datatable.en_aspect, SUM(wdcm_datatable.en_count) as en_count 
+          FROM wdcm_datatable 
+          GROUP BY wdcm_datatable.en_project, wdcm_datatable.en_category, wdcm_datatable.en_aspect;"
+res <- dbSendQuery(con, q)
+dbClearResult(res)
+dbDisconnect()
+# - created indexes on wdcm_project_category_aspect:
+con <- dbConnect(MySQL(), 
+                 host = "tools.labsdb", 
+                 defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                 dbname = "u16664__wdcm_p",
+                 user = mySQLCreds$user,
+                 password = mySQLCreds$password)
+q <- "CREATE INDEX pcaix_ ON wdcm_project_category_aspect (en_project, en_category, en_aspect); "
+res <- dbSendQuery(con, q)
+dbClearResult(res)
+dbDisconnect(con)
+
+### --- Current Statistics
+con <- dbConnect(MySQL(), 
+                 host = "tools.labsdb", 
+                 defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                 dbname = "u16664__wdcm_p",
+                 user = mySQLCreds$user,
+                 password = mySQLCreds$password)
+q <- "SELECT COUNT(DISTINCT(en_id)) as numitem, 
+          COUNT(DISTINCT(en_category)) as numcategory,
+          COUNT(DISTINCT(en_project)) as numproject,
+          COUNT(DISTINCT(en_aspect)) as numaspect
+          FROM wdcm_datatable;"
+res <- dbSendQuery(con, q)
+currentStats <- fetch(res, -1)
+dbClearResult(res)
+dbDisconnect(con)
+con <- dbConnect(MySQL(), 
+                 host = "tools.labsdb", 
+                 defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                 dbname = "u16664__wdcm_p",
+                 user = mySQLCreds$user,
+                 password = mySQLCreds$password)
+q <- "SELECT * FROM wdcm_projecttopic LIMIT 1;"
+res <- dbSendQuery(con, q)
+topicsInfo <- fetch(res, -1)
+dbClearResult(res)
+dbDisconnect(con)
+currentStats$numtopic <- sum(grepl("^topic", colnames(topicsInfo)))
+setwd('/home/goransm/WMDE/WDCM/WDCM_RScripts/WDCM_Dashboard/aux')
+write.csv(currentStats, file = 'currentStats.csv')
+
+
+### --- wdcm_itemfrequency table
+
+### --- Most frequently used Wikidata items
+con <- dbConnect(MySQL(), 
+                 host = "tools.labsdb", 
+                 defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                 dbname = "u16664__wdcm_p",
+                 user = mySQLCreds$user,
+                 password = mySQLCreds$password)
+q <- "SELECT * FROM wdcm_item;"
+res <- dbSendQuery(con, q)
+itemCounts <- fetch(res, -1)
+q <- "SELECT * FROM wdcm_itemlabel;"
+res <- dbSendQuery(con, q)
+itemLabels <- fetch(res, -1)
+dbClearResult(res)
+dbDisconnect(con)
+# - join
+itemCounts <- itemCounts %>% 
+  left_join(itemLabels, by = 'en_id') %>% 
+  arrange(desc(en_count))
+rm(itemLabels); gc()
+# write to: wdcm_itemfrequency
+# - check whether wdcm_itemfrequency table exists:
+checkTable <- which(st$tables %in% "wdcm_itemfrequency")
+# - DROP wdcm_itemfrequency if it exists
+if (length(checkTable) == 1) {
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  q <- "DROP TABLE wdcm_itemfrequency;"
+  res <- dbSendQuery(con, q)
+  dbClearResult(res)
+  dbDisconnect(con)
+}
+# - CREATE:
+con <- dbConnect(MySQL(), 
+                 host = "tools.labsdb", 
+                 defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                 dbname = "u16664__wdcm_p",
+                 user = mySQLCreds$user,
+                 password = mySQLCreds$password)
+dbWriteTable(conn = con,
+             name = "wdcm_itemfrequency",
+             value = itemCounts,
+             row.names = F,
+             append = T)
+dbDisconnect(con)
+rm(itemCounts); gc()
+
+### --- Most important items per Topic, N = 100
+topicNames <- paste0("topic", 1:currentStats$numtopic)
+topicData <- vector(mode = "list", length = length(topicNames))
+for (i in 1:length(topicNames)) {
+  # - fetch data for topic i:
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  # - create query:
+  q <- paste(
+    "SELECT en_label, en_id, ", topicNames[i], " FROM wdcm_itemtopic ",
+    "ORDER BY ", topicNames[i], " DESC ",
+    "LIMIT 100;",
+    sep = ""
+  )
+  # - fetch:
+  res <- dbSendQuery(con, q)
+  topicData[[i]] <- fetch(res, -1)
+  colnames(topicData[[i]])[1] <- paste(topicNames[i], "_labs", sep = "") 
+  colnames(topicData[[i]])[2] <- paste(topicNames[i], "_id", sep = "") 
+  dbClearResult(res)
+  dbDisconnect(con)
+}
+# -write topicData as wdcm_topic100items:
+wdcm_topic100items <- do.call(cbind, topicData)
+rm(topicData)
+# - check whether wdcm_topic100items table exists:
+checkTable <- which(st$tables %in% "wdcm_topic100items")
+# - DROP wdcm_topic100items if it exists
+if (length(checkTable) == 1) {
+  con <- dbConnect(MySQL(), 
+                   host = "tools.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  q <- "DROP TABLE wdcm_topic100items;"
+  res <- dbSendQuery(con, q)
+  dbClearResult(res)
+  dbDisconnect(con)
+}
+con <- dbConnect(MySQL(), 
+                 host = "tools.labsdb", 
+                 defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                 dbname = "u16664__wdcm_p",
+                 user = mySQLCreds$user,
+                 password = mySQLCreds$password)
+dbWriteTable(conn = con,
+             name = "wdcm_topic100items",
+             value = wdcm_topic100items,
+             row.names = F,
+             append = T)
+dbDisconnect(con)
+rm(wdcm_topic100items); gc()
+
 

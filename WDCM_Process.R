@@ -40,6 +40,8 @@
 ### --- along with WDCM. If not, see <http://www.gnu.org/licenses/>.
 ### ---------------------------------------------------------------------------
 
+### --- git/gerrit 08/12/2017.
+
 ### --- Setup
 rm(list = ls()); gc()
 library(RMySQL)

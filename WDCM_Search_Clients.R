@@ -8,7 +8,7 @@
 ### --- Contact: goran.milovanovic_ext@wikimedia.de
 ### ---------------------------------------------------------------------------
 ### --- DESCRIPTION:
-### --- WDCM_Search_Clients_HiveQL.R takes a list of
+### --- WDCM_Search_Clients.R takes a list of
 ### --- item IDs from Wikidata (the list is delivered by
 ### --- the WDCM_Search_Items.R script) and searches for their
 ### --- usage across the Wikimedia projects in Hadoop:
@@ -26,13 +26,7 @@
 ### --- running on wikidataconcepts.wmflabs.org Labs instance.
 ### ---------------------------------------------------------------------------
 ### --- OUTPUT: 
-### --- Results are stored locally as .tsv files on production,
-### --- with each file encompassing the data for one client project.
-### --- The outputs are stored locally on stat1005.eqiad.wmnet in:
-### --- /a/published-datasets/WDCM/Search_Items_DataOUT
-### --- These output .tsv files migrate to Labs:
-### --- wikidataconcepts.wmflabs.org Cloud VPS instance
-### --- where they are then processed by the WDCM Process Module.
+### --- wdcm_maintable Hive table on hdfs, database: goransm
 ### ---------------------------------------------------------------------------
 ### --- RUN:
 ### --- nohup Rscript /home/goransm/RScripts/WDCM_R/WDCM_Search_Clients.R &

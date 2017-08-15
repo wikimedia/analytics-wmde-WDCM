@@ -59,7 +59,7 @@ hiveQLquery <- 'USE goransm;
                 SET hive.mapred.mode=unstrict; 
                 SELECT eu_project, category, SUM(eu_count) AS eu_count 
                   FROM wdcm_maintable 
-                  GROUP BY eu_project, category;'
+                  GROUP BY eu_project, category ORDER BY eu_count DESC LIMIT 10000000;'
 system(command = paste('beeline -e "', 
                        hiveQLquery, 
                        '" > /home/goransm/WDCM_DataOUT/WDCM_DataOUT_ClientWDUsage/wdcm_project_category.tsv',
@@ -71,7 +71,7 @@ hiveQLquery <- 'USE goransm;
                 SET hive.mapred.mode=unstrict; 
                 SELECT eu_project, SUM(eu_count) AS eu_count 
                   FROM wdcm_maintable 
-                  GROUP BY eu_project;'
+                  GROUP BY eu_project ORDER BY eu_count DESC LIMIT 10000000;'
 system(command = paste('beeline -e "', 
                        hiveQLquery, 
                        '" > /home/goransm/WDCM_DataOUT/WDCM_DataOUT_ClientWDUsage/wdcm_project.tsv',
@@ -83,7 +83,7 @@ hiveQLquery <- 'USE goransm;
                 SET hive.mapred.mode=unstrict; 
                 SELECT category, SUM(eu_count) AS eu_count 
                   FROM wdcm_maintable 
-                  GROUP BY category;'
+                  GROUP BY category ORDER BY eu_count DESC LIMIT 10000000;'
 system(command = paste('beeline -e "', 
                        hiveQLquery, 
                        '" > /home/goransm/WDCM_DataOUT/WDCM_DataOUT_ClientWDUsage/wdcm_category.tsv',
@@ -117,6 +117,29 @@ for (i in 1:length(categories)) {
          wait = TRUE)
 }
 
+### --- produce wdcm_project_category_item100.tsv from wdcm_maintable (hdfs, database: goransm)
+hiveQLquery <- 'USE goransm; SET hive.mapred.mode=unstrict; 
+                SELECT * FROM (
+                  SELECT eu_project, category, eu_entity_id, eu_count, ROW_NUMBER() OVER (PARTITION BY eu_project, category ORDER BY eu_count DESC) AS row 
+                  FROM wdcm_maintable) t 
+                  WHERE row <= 100;'
+system(command = paste('beeline -e "', 
+                       hiveQLquery, 
+                       '" > /home/goransm/WDCM_DataOUT/WDCM_DataOUT_ClientWDUsage/wdcm_project_category_item100.tsv',
+                       sep = ""),
+       wait = TRUE)
+
+### --- produce wdcm_project_item100.tsv from wdcm_maintable (hdfs, database: goransm)
+hiveQLquery <- 'USE goransm; SET hive.mapred.mode=unstrict; 
+                SELECT * FROM (
+                  SELECT eu_project, eu_entity_id, eu_count, ROW_NUMBER() OVER (PARTITION BY eu_project ORDER BY eu_count DESC) AS row 
+                  FROM wdcm_maintable) t 
+                  WHERE row <= 100;'
+system(command = paste('beeline -e "', 
+                       hiveQLquery, 
+                       '" > /home/goransm/WDCM_DataOUT/WDCM_DataOUT_ClientWDUsage/wdcm_project_item100.tsv',
+                       sep = ""),
+       wait = TRUE)
 
 
 

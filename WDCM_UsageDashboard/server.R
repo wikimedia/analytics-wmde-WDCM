@@ -151,6 +151,13 @@ totalProjects <- length(wdcmProject$Project)
 totalCategories <- length(wdcmCategory$Category)
 totalProjectTypes <- length(wdcmProjectType$`Project Type`)
 
+### --- prepare search constants for Tabs/Crosstabs
+search_projectTypes <- paste("_", projectTypes, sep = "")
+unzip_projectTypes <- lapply(projectTypes, function(x) {
+  wdcmProject$Project[which(wdcmProject$`Project Type` %in% x)]
+})
+names(unzip_projectTypes) <- search_projectTypes
+
 ### --- shinyServer
 shinyServer(function(input, output, session) {
   
@@ -531,6 +538,178 @@ shinyServer(function(input, output, session) {
       return(NULL)
     }
   })
+  
+  ### ----------------------------------
+  ### --- TABS AND CROSSTABS
+  ### ----------------------------------
+  
+  ### --- SELECT: update select 'selectProject'
+  updateSelectizeInput(session,
+                       'selectProject',
+                       choices = c(projects, paste("_", projectTypes, sep="")),
+                       selected = projects[round(runif(5, 1, length(projects)))],
+                       server = TRUE)
+  
+  ### --- SELECT: update select 'selectCategories'
+  updateSelectizeInput(session,
+                       'selectCategories',
+                       choices = categories,
+                       selected = categories[round(runif(3, 1, length(categories)))],
+                       server = TRUE)
+  
+  # - OBSERVE: input$applySelection
+  observeEvent(input$applySelection, {
+    
+    ### --- selected projects:
+    selectedProjects <- character()
+    wUnzip <- which(names(unzip_projectTypes) %in% isolate(input$selectProject))
+    if (length(wUnzip > 0)) {
+      selectedProjects <- unname(do.call(c, unzip_projectTypes[wUnzip]))
+    }
+    wSel <- which(projects %in% isolate(input$selectProject))
+    if (length(wSel > 0)) {
+      selectedProjects <- c(selectedProjects, projects[wSel])
+    }
+    selectedProjects <- unique(selectedProjects)
+    output$testSelectedProjects <- renderText({
+      paste(selectedProjects, collapse = ", ", sep = "")
+    })
+    
+    ### --- selected categories:
+    selectedCategories <- isolate(input$selectCategories)
+      
+    #### ---  Chart: tabulations_projectsChart
+    output$tabulations_projectsChart <- renderPlot({
+      # - Chart Frame for output$tabulations_projectsChart
+      plotFrame <- wdcmProjectCategory %>%
+        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>%
+        group_by(Project) %>% 
+        summarise(Usage = sum(Usage)) %>%
+        arrange(desc(Usage))
+      # - top 25 projects:
+      if (dim(plotFrame)[1] > 25) {
+        plotFrame <- plotFrame[1:25, ]
+      }
+      plotFrame$Project <- factor(plotFrame$Project, 
+                                  levels = plotFrame$Project[order(-plotFrame$Usage)])
+      # - express labels as K, M:
+      plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
+        if (x >= 1e+03 & x < 1e+06) {
+          out <- paste(round(x/1e+03, 1), "K", sep = "")
+        } else if (x > 1e+06) {
+          out <- paste(round(x/1e+06, 1), "M", sep = "")
+        } else {
+          out <- as.character(x)
+        }
+        return(out)
+      })
+      # - Plot
+      ggplot(plotFrame,
+             aes(x = Project, y = Usage, label = Label)) +
+        geom_bar(stat = "identity", width = .6, fill = "#4c8cff") +
+        xlab('Projects') + ylab('Entity Usage') +
+        ylim(0, max(plotFrame$Usage) + .1*max(plotFrame$Usage)) +
+        scale_y_continuous(labels = comma) + 
+        geom_label(size = 3, vjust = -.1) +
+        theme_minimal() +
+        theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
+        theme(axis.title.x = element_text(size = 12)) +
+        theme(axis.title.y = element_text(size = 12)) +
+        theme(plot.title = element_text(size = 15)) %>%
+        withProgress(message = 'Generating plot',
+                     min = 0,
+                     max = 1,
+                     value = 1, {incProgress(amount = 0)})
+    })
+    # - Download Frame: tabulations_projectsChart
+    tabulations_projectsDownload_Frame <- reactive({
+      plotFrame <- wdcmProjectCategory %>%
+        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>%
+        group_by(Project) %>% 
+        summarise(Usage = sum(Usage)) %>%
+        arrange(desc(Usage))
+      plotFrame
+    })
+    # - Download: tabulations_projectsChart
+    output$tabulations_projectsDownload_Frame <- downloadHandler(
+      filename = function() {
+        'WDCM_Data.csv'},
+      content = function(file) {
+        write.csv(tabulations_projectsDownload_Frame(),
+                  file,
+                  quote = FALSE,
+                  row.names = FALSE)
+      },
+      contentType = "text/csv"
+    )
+    
+    #### ---  Chart: tabulations_categoriesChart
+    output$tabulations_categoriesChart <- renderPlot({
+      # - Chart Frame for output$tabulations_categoriesChart
+      plotFrame <- wdcmProjectCategory %>%
+        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>%
+        group_by(Category) %>% 
+        summarise(Usage = sum(Usage)) %>%
+        arrange(desc(Usage))
+      # - top 25 categories:
+      if (dim(plotFrame)[1] > 25) {
+        plotFrame <- plotFrame[1:25, ]
+      }
+      plotFrame$Category <- factor(plotFrame$Category, 
+                                  levels = plotFrame$Category[order(-plotFrame$Usage)])
+      # - express labels as K, M:
+      plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
+        if (x >= 1e+03 & x < 1e+06) {
+          out <- paste(round(x/1e+03, 1), "K", sep = "")
+        } else if (x > 1e+06) {
+          out <- paste(round(x/1e+06, 1), "M", sep = "")
+        } else {
+          out <- as.character(x)
+        }
+        return(out)
+      })
+      # - Plot
+      ggplot(plotFrame,
+             aes(x = Category, y = Usage, label = Label)) +
+        geom_bar(stat = "identity", width = .6, fill = "#4c8cff") +
+        xlab('Category') + ylab('Entity Usage') +
+        ylim(0, max(plotFrame$Usage) + .1*max(plotFrame$Usage)) +
+        scale_y_continuous(labels = comma) + 
+        geom_label(size = 3, vjust = -.1) +
+        theme_minimal() +
+        theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
+        theme(axis.title.x = element_text(size = 12)) +
+        theme(axis.title.y = element_text(size = 12)) +
+        theme(plot.title = element_text(size = 15)) %>%
+        withProgress(message = 'Generating plot',
+                     min = 0,
+                     max = 1,
+                     value = 1, {incProgress(amount = 0)})
+    })
+    # - Download Frame: tabulations_categoriesChart
+    tabulations_categoriesDownload_Frame <- reactive({
+      plotFrame <- wdcmProjectCategory %>%
+        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>%
+        group_by(Category) %>% 
+        summarise(Usage = sum(Usage)) %>%
+        arrange(desc(Usage))
+      plotFrame
+    })
+    # - Download: tabulations_categoriesChart
+    output$tabulations_categoriesDownload_Frame <- downloadHandler(
+      filename = function() {
+        'WDCM_Data.csv'},
+      content = function(file) {
+        write.csv(tabulations_categoriesDownload_Frame(),
+                  file,
+                  quote = FALSE,
+                  row.names = FALSE)
+      },
+      contentType = "text/csv"
+    )
+    
+  })
+  
     
   
   ### ----------------------------------

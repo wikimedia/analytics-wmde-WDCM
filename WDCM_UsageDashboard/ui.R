@@ -28,10 +28,25 @@ shinyUI(
             fluidRow(
               column(width = 12,
                      h2('WDCM Usage Dashboard'),
-                     HTML('<font size="3"><b>Wikidata Concepts Monitor</b></font>'),
-                     hr()
+                     HTML('<font size="3"><b>Wikidata Concepts Monitor</b></font>')
+                     
                      )
             ), # - fluidRow Title END
+            
+            # - fluidRow Logo
+            fluidRow(
+              column(width = 12,
+                     img(src='Wikidata-logo-en.png', 
+                         align = "left")
+                     )
+            ), # - fluidRow END
+            
+            # - hr()
+            fluidRow(
+              column(width = 12,
+                     hr()
+                     )
+            ),
             
             # - fluidRow Boxes
             fluidRow(
@@ -285,14 +300,55 @@ shinyUI(
                                                                 fluidRow(
                                                                   column(width = 6,
                                                                          h4('Projects'),
-                                                                         plotOutput('tabulations_projectsChart'),
+                                                                         withSpinner(plotOutput('tabulations_projectsChart', height = "600px")),
                                                                          downloadButton('tabulations_projectsDownload_Frame',
                                                                                         'Data (csv)')
                                                                          ),
                                                                   column(width = 6,
                                                                          h4('Categories'),
-                                                                         plotOutput('tabulations_categoriesChart'),
+                                                                         withSpinner(plotOutput('tabulations_categoriesChart', height = "600px")),
                                                                          downloadButton('tabulations_categoriesDownload_Frame',
+                                                                                        'Data (csv)')
+                                                                  )
+                                                                ),
+                                                                fluidRow(
+                                                                  column(width = 12,
+                                                                         hr()
+                                                                  )
+                                                                ),
+                                                                fluidRow(
+                                                                  column(width = 6,
+                                                                         h4('Project Types'),
+                                                                         withSpinner(plotOutput('tabulations_projectTypesChart', height = "600px")),
+                                                                         downloadButton('tabulations_projectTypesChart_Frame',
+                                                                                        'Data (csv)')
+                                                                  ),
+                                                                  column(width = 6
+                                                                  )
+                                                                ),
+                                                                fluidRow(
+                                                                  column(width = 12,
+                                                                         hr()
+                                                                  )
+                                                                ),
+                                                                fluidRow(
+                                                                  column(width = 12,
+                                                                         h4('Project vs Categories'),
+                                                                         withSpinner(plotOutput('crosstabulations_projectsCategoriesChart', height = "850px")),
+                                                                         downloadButton('crosstabulations_projectsCategoriesFrame',
+                                                                                        'Data (csv)')
+                                                                         )
+                                                                ),
+                                                                fluidRow(
+                                                                  column(width = 12,
+                                                                         hr()
+                                                                  )
+                                                                ),
+                                                                fluidRow(
+                                                                  column(width = 12,
+                                                                         h4('Project Types vs Categories'),
+                                                                         withSpinner(plotOutput('crosstabulations_projectTypesCategoriesChart', height = "850px")),
+                                                                         downloadButton('crosstabulations_projectTypeCategoriesChartFrame',
                                                                                         'Data (csv)')
                                                                   )
                                                                 )

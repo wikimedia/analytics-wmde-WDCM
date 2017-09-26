@@ -547,26 +547,24 @@ shinyServer(function(input, output, session) {
   updateSelectizeInput(session,
                        'selectProject',
                        choices = c(projects, paste("_", projectTypes, sep="")),
-                       selected = projects[round(runif(5, 1, length(projects)))],
+                       selected = c("_Wikipedia", "_Wikinews", "_Wiktionary"),
                        server = TRUE)
   
   ### --- SELECT: update select 'selectCategories'
   updateSelectizeInput(session,
                        'selectCategories',
                        choices = categories,
-                       selected = categories[round(runif(3, 1, length(categories)))],
+                       selected = categories[round(runif(6, 1, length(categories)))],
                        server = TRUE)
   
-  # - OBSERVE: input$applySelection
-  observeEvent(input$applySelection, {
-    
+  tabsDataset <- reactive({
     ### --- selected projects:
     selectedProjects <- character()
-    wUnzip <- which(names(unzip_projectTypes) %in% isolate(input$selectProject))
+    wUnzip <- which(names(unzip_projectTypes) %in% input$selectProject)
     if (length(wUnzip > 0)) {
       selectedProjects <- unname(do.call(c, unzip_projectTypes[wUnzip]))
     }
-    wSel <- which(projects %in% isolate(input$selectProject))
+    wSel <- which(projects %in% input$selectProject)
     if (length(wSel > 0)) {
       selectedProjects <- c(selectedProjects, projects[wSel])
     }
@@ -574,343 +572,340 @@ shinyServer(function(input, output, session) {
     output$testSelectedProjects <- renderText({
       paste(selectedProjects, collapse = ", ", sep = "")
     })
-    
     ### --- selected categories:
-    selectedCategories <- isolate(input$selectCategories)
-      
-    #### ---  Chart: tabulations_projectsChart
-    output$tabulations_projectsChart <- renderPlot({
-      # - Chart Frame for output$tabulations_projectsChart
-      plotFrame <- wdcmProjectCategory %>%
-        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>%
-        group_by(Project) %>% 
-        summarise(Usage = sum(Usage)) %>%
-        arrange(desc(Usage))
-      # - top 25 projects:
-      if (dim(plotFrame)[1] > 25) {
-        plotFrame <- plotFrame[1:25, ]
-      }
-      plotFrame$Project <- factor(plotFrame$Project, 
-                                  levels = plotFrame$Project[order(-plotFrame$Usage)])
-      # - express labels as K, M:
-      plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
-        if (x >= 1e+03 & x < 1e+06) {
-          out <- paste(round(x/1e+03, 1), "K", sep = "")
-        } else if (x > 1e+06) {
-          out <- paste(round(x/1e+06, 1), "M", sep = "")
-        } else {
-          out <- as.character(x)
-        }
-        return(out)
-      })
-      # - Plot
-      ggplot(plotFrame,
-             aes(x = Project, y = Usage, label = Label)) +
-        geom_bar(stat = "identity", width = .6, fill = "#4c8cff") +
-        xlab('Projects') + ylab('Entity Usage') +
-        ylim(0, max(plotFrame$Usage) + .1*max(plotFrame$Usage)) +
-        scale_y_continuous(labels = comma) + 
-        geom_label(size = 3, vjust = -.1) +
-        theme_minimal() +
-        theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
-        theme(axis.title.x = element_text(size = 12)) +
-        theme(axis.title.y = element_text(size = 12)) +
-        theme(plot.title = element_text(size = 15)) %>%
-        withProgress(message = 'Generating plot',
-                     min = 0,
-                     max = 1,
-                     value = 1, {incProgress(amount = 0)})
-    })
-    # - Download Frame: tabulations_projectsChart
-    tabulations_projectsDownload_Frame <- reactive({
-      plotFrame <- wdcmProjectCategory %>%
-        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>%
-        group_by(Project) %>% 
-        summarise(Usage = sum(Usage)) %>%
-        arrange(desc(Usage))
-      plotFrame
-    })
-    # - Download: tabulations_projectsChart
-    output$tabulations_projectsDownload_Frame <- downloadHandler(
-      filename = function() {
-        'WDCM_Data.csv'},
-      content = function(file) {
-        write.csv(tabulations_projectsDownload_Frame(),
-                  file,
-                  quote = FALSE,
-                  row.names = FALSE)
-      },
-      contentType = "text/csv"
-    )
-    
-    #### ---  Chart: tabulations_categoriesChart
-    output$tabulations_categoriesChart <- renderPlot({
-      # - Chart Frame for output$tabulations_categoriesChart
-      plotFrame <- wdcmProjectCategory %>%
-        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>%
-        group_by(Category) %>% 
-        summarise(Usage = sum(Usage)) %>%
-        arrange(desc(Usage))
-      # - top 25 categories:
-      if (dim(plotFrame)[1] > 25) {
-        plotFrame <- plotFrame[1:25, ]
-      }
-      plotFrame$Category <- factor(plotFrame$Category, 
-                                  levels = plotFrame$Category[order(-plotFrame$Usage)])
-      # - express labels as K, M:
-      plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
-        if (x >= 1e+03 & x < 1e+06) {
-          out <- paste(round(x/1e+03, 1), "K", sep = "")
-        } else if (x > 1e+06) {
-          out <- paste(round(x/1e+06, 1), "M", sep = "")
-        } else {
-          out <- as.character(x)
-        }
-        return(out)
-      })
-      # - Plot
-      ggplot(plotFrame,
-             aes(x = Category, y = Usage, label = Label)) +
-        geom_bar(stat = "identity", width = .6, fill = "#4c8cff") +
-        xlab('Category') + ylab('Entity Usage') +
-        ylim(0, max(plotFrame$Usage) + .1*max(plotFrame$Usage)) +
-        scale_y_continuous(labels = comma) + 
-        geom_label(size = 3, vjust = -.1) +
-        theme_minimal() +
-        theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
-        theme(axis.title.x = element_text(size = 12)) +
-        theme(axis.title.y = element_text(size = 12)) +
-        theme(plot.title = element_text(size = 15)) %>%
-        withProgress(message = 'Generating plot',
-                     min = 0,
-                     max = 1,
-                     value = 1, {incProgress(amount = 0)})
-    })
-    # - Download Frame: tabulations_categoriesChart
-    tabulations_categoriesDownload_Frame <- reactive({
-      plotFrame <- wdcmProjectCategory %>%
-        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>%
-        group_by(Category) %>% 
-        summarise(Usage = sum(Usage)) %>%
-        arrange(desc(Usage))
-      plotFrame
-    })
-    # - Download: tabulations_categoriesChart
-    output$tabulations_categoriesDownload_Frame <- downloadHandler(
-      filename = function() {
-        'WDCM_Data.csv'},
-      content = function(file) {
-        write.csv(tabulations_categoriesDownload_Frame(),
-                  file,
-                  quote = FALSE,
-                  row.names = FALSE)
-      },
-      contentType = "text/csv"
-    )
-    
-    #### ---  Chart: tabulations_projectTypesChart
-    output$tabulations_projectTypesChart <- renderPlot({
-      # - Chart Frame for output$tabulations_projectTypesChart
-      plotFrame <- wdcmProjectCategory %>%
-        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>%
-        group_by(`Project Type`) %>% 
-        summarise(Usage = sum(Usage)) %>%
-        arrange(desc(Usage))
-      # - top 25 categories:
-      if (dim(plotFrame)[1] > 25) {
-        plotFrame <- plotFrame[1:25, ]
-      }
-      plotFrame$`Project Type` <- factor(plotFrame$`Project Type`, 
-                                   levels = plotFrame$`Project Type`[order(-plotFrame$Usage)])
-      # - express labels as K, M:
-      plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
-        if (x >= 1e+03 & x < 1e+06) {
-          out <- paste(round(x/1e+03, 1), "K", sep = "")
-        } else if (x > 1e+06) {
-          out <- paste(round(x/1e+06, 1), "M", sep = "")
-        } else {
-          out <- as.character(x)
-        }
-        return(out)
-      })
-      # - Plot
-      ggplot(plotFrame,
-             aes(x = `Project Type`, y = Usage, label = Label)) +
-        geom_bar(stat = "identity", width = .6, fill = "#4c8cff") +
-        xlab('Project Type') + ylab('Entity Usage') +
-        ylim(0, max(plotFrame$Usage) + .1*max(plotFrame$Usage)) +
-        scale_y_continuous(labels = comma) + 
-        geom_label(size = 3, vjust = -.1) +
-        theme_minimal() +
-        theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
-        theme(axis.title.x = element_text(size = 12)) +
-        theme(axis.title.y = element_text(size = 12)) +
-        theme(plot.title = element_text(size = 15)) %>%
-        withProgress(message = 'Generating plot',
-                     min = 0,
-                     max = 1,
-                     value = 1, {incProgress(amount = 0)})
-    })
-    # - Download Frame: tabulations_projectTypesChart
-    tabulations_projectTypesChartDownload_Frame <- reactive({
-      plotFrame <- wdcmProjectCategory %>%
-        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>%
-        group_by(`Project Type`) %>% 
-        summarise(Usage = sum(Usage)) %>%
-        arrange(desc(Usage))
-      plotFrame
-    })
-    # - Download: tabulations_projectTypesChart
-    output$tabulations_projectTypesChart_Frame <- downloadHandler(
-      filename = function() {
-        'WDCM_Data.csv'},
-      content = function(file) {
-        write.csv(tabulations_projectTypesChartDownload_Frame(),
-                  file,
-                  quote = FALSE,
-                  row.names = FALSE)
-      },
-      contentType = "text/csv"
-    )
-    
-    #### ---  Chart: crosstabulations_projectsCategoriesChart
-    output$crosstabulations_projectsCategoriesChart <- renderPlot({
-      # - Chart Frame for output$crosstabulations_projectsCategoriessChart
-      plotFrame <- wdcmProjectCategory %>%
-        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>%
-        arrange(desc(Usage))
-      projectOrder <- plotFrame %>%
-        group_by(Project) %>% 
-        summarise(Usage = sum(Usage)) %>%
-        arrange(desc(Usage))
-      selProj <- projectOrder$Project[1:25]
-      plotFrame <- plotFrame %>% 
-        filter(Project %in% selProj)
-      plotFrame$Project <- factor(plotFrame$Project, 
-                                         levels = selProj)
-      # - express labels as K, M:
-      plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
-        if (x >= 1e+03 & x < 1e+06) {
-          out <- paste(round(x/1e+03, 1), "K", sep = "")
-        } else if (x > 1e+06) {
-          out <- paste(round(x/1e+06, 1), "M", sep = "")
-        } else {
-          out <- as.character(x)
-        }
-        return(out)
-      })
-      # - Plot
-      ggplot(plotFrame,
-             aes(x = Project, y = Usage, label = Label)) +
-        geom_line(size = .25, color = "#4c8cff", group = 1) +
-        geom_point(size = 1.5, color = "#4c8cff") + 
-        geom_point(size = 1, color = "white") + 
-        geom_text_repel(aes(label = plotFrame$Label), 
-                        size = 3) +
-        facet_wrap(~ Category, ncol = 3, scales = "free_y") +
-        xlab('Project') + ylab('Entity Usage') +
-        ylim(0, max(plotFrame$Usage) + .5*max(plotFrame$Usage)) +
-        scale_y_continuous(labels = comma) + 
-        theme_minimal() +
-        theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
-        theme(axis.title.x = element_text(size = 12)) +
-        theme(axis.title.y = element_text(size = 12)) +
-        theme(plot.title = element_text(size = 15)) %>%
-        withProgress(message = 'Generating plot',
-                     min = 0,
-                     max = 1,
-                     value = 1, {incProgress(amount = 0)})
-    })
-    # - Download Frame: crosstabulations_projectsCategoriesChart
-    crosstabulations_projectsCategoriesChartDownload_Frame <- reactive({
-      plotFrame <- wdcmProjectCategory %>%
-        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>%
-        arrange(desc(Usage))
-      plotFrame
-    })
-    # - Download: crosstabulations_projectsCategoriesFrame
-    output$crosstabulations_projectsCategoriesFrame <- downloadHandler(
-      filename = function() {
-        'WDCM_Data.csv'},
-      content = function(file) {
-        write.csv(crosstabulations_projectsCategoriesChartDownload_Frame(),
-                  file,
-                  quote = FALSE,
-                  row.names = FALSE)
-      },
-      contentType = "text/csv"
-    )
-    
-    #### ---  Chart: crosstabulations_projectTypesCategoriesChart
-    output$crosstabulations_projectTypesCategoriesChart <- renderPlot({
-      # - Chart Frame for output$crosstabulations_projectTypesCategoriesChart
-      plotFrame <- wdcmProjectCategory %>%
-        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>% 
-        group_by(`Project Type`, Category) %>% 
-        summarise(Usage = sum(Usage)) %>% 
-        arrange(desc(Usage))
-      projectTypeOrder <- plotFrame %>% 
-        group_by(`Project Type`) %>% 
-        summarise(Usage = sum(Usage)) %>% 
-        arrange(desc(Usage))
-      plotFrame$`Project Type` <- factor(plotFrame$`Project Type`, 
-                                  levels = projectTypeOrder$`Project Type`)
-      # - express labels as K, M:
-      plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
-        if (x >= 1e+03 & x < 1e+06) {
-          out <- paste(round(x/1e+03, 1), "K", sep = "")
-        } else if (x > 1e+06) {
-          out <- paste(round(x/1e+06, 1), "M", sep = "")
-        } else {
-          out <- as.character(x)
-        }
-        return(out)
-      })
-      # - Plot
-      ggplot(plotFrame,
-             aes(x = `Project Type`, y = Usage, label = Label)) +
-        geom_line(size = .25, color = "#4c8cff", group = 1) +
-        geom_point(size = 1.5, color = "#4c8cff") + 
-        geom_point(size = 1, color = "white") + 
-        geom_text_repel(aes(label = plotFrame$Label), 
-                        size = 3) +
-        facet_wrap(~ Category, ncol = 3, scales = "free_y") +
-        xlab('Project Type') + ylab('Entity Usage') +
-        ylim(0, max(plotFrame$Usage) + .5*max(plotFrame$Usage)) +
-        scale_y_continuous(labels = comma) + 
-        theme_minimal() +
-        theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
-        theme(axis.title.x = element_text(size = 12)) +
-        theme(axis.title.y = element_text(size = 12)) +
-        theme(plot.title = element_text(size = 15)) %>%
-        withProgress(message = 'Generating plot',
-                     min = 0,
-                     max = 1,
-                     value = 1, {incProgress(amount = 0)})
-    })
-    # - Download Frame: crosstabulations_projectTypeCategoriesChart
-    crosstabulations_projectTypeCategoriesChartDownload_Frame <- reactive({
-      plotFrame <- wdcmProjectCategory %>%
-        filter(Project %in% selectedProjects & Category %in% selectedCategories) %>% 
-        group_by(`Project Type`, Category) %>% 
-        summarise(Usage = sum(Usage)) %>% 
-        arrange(desc(Usage))
-      plotFrame
-    })
-    # - Download: crosstabulations_projectTypeCategoriesChartFrame
-    output$crosstabulations_projectTypeCategoriesChartFrame <- downloadHandler(
-      filename = function() {
-        'WDCM_Data.csv'},
-      content = function(file) {
-        write.csv(crosstabulations_projectTypeCategoriesChartDownload_Frame(),
-                  file,
-                  quote = FALSE,
-                  row.names = FALSE)
-      },
-      contentType = "text/csv"
-    )
-    
+    selectedCategories <- input$selectCategories
+    ### --- output
+    out <- wdcmProjectCategory %>% 
+      filter(Project %in% selectedProjects & Category %in% selectedCategories)
+    out
   })
+
+  ### --- OBSERVE: input$applySelection
+  observeEvent(input$applySelection, {
+
+      #### ---  Chart: tabulations_projectsChart
+      output$tabulations_projectsChart <- renderPlot({
+        # - Chart Frame for output$tabulations_projectsChart
+        plotFrame <- isolate(tabsDataset()) %>%
+          group_by(Project) %>% 
+          summarise(Usage = sum(Usage)) %>%
+          arrange(desc(Usage))
+        # - top 25 projects:
+        if (dim(plotFrame)[1] >= 25) {
+          plotFrame <- plotFrame[1:25, ]
+        }
+        plotFrame$Project <- factor(plotFrame$Project, 
+                                    levels = plotFrame$Project[order(-plotFrame$Usage)])
+        # - express labels as K, M:
+        plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
+          if (x >= 1e+03 & x < 1e+06) {
+            out <- paste(round(x/1e+03, 1), "K", sep = "")
+          } else if (x > 1e+06) {
+            out <- paste(round(x/1e+06, 1), "M", sep = "")
+          } else {
+            out <- as.character(x)
+          }
+          return(out)
+        })
+        # - Plot
+        ggplot(plotFrame,
+               aes(x = Project, y = Usage, label = Label)) +
+          geom_bar(stat = "identity", width = .6, fill = "#4c8cff") +
+          xlab('Projects') + ylab('Entity Usage') +
+          ylim(0, max(plotFrame$Usage) + .1*max(plotFrame$Usage)) +
+          scale_y_continuous(labels = comma) + 
+          geom_label(size = 3, vjust = -.1) +
+          theme_minimal() +
+          theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
+          theme(axis.title.x = element_text(size = 12)) +
+          theme(axis.title.y = element_text(size = 12)) +
+          theme(plot.title = element_text(size = 15)) %>%
+          withProgress(message = 'Generating plot',
+                       min = 0,
+                       max = 1,
+                       value = 1, {incProgress(amount = 0)})
+      })
+      # - Download Frame: tabulations_projectsChart
+      tabulations_projectsDownload_Frame <- reactive({
+        plotFrame <- isolate(tabsDataset()) %>%
+          group_by(Project) %>% 
+          summarise(Usage = sum(Usage)) %>%
+          arrange(desc(Usage))
+        plotFrame
+      })
+      # - Download: tabulations_projectsChart
+      output$tabulations_projectsDownload_Frame <- downloadHandler(
+        filename = function() {
+          'WDCM_Data.csv'},
+        content = function(file) {
+          write.csv(tabulations_projectsDownload_Frame(),
+                    file,
+                    quote = FALSE,
+                    row.names = FALSE)
+        },
+        contentType = "text/csv"
+      )
+      
+      #### ---  Chart: tabulations_categoriesChart
+      output$tabulations_categoriesChart <- renderPlot({
+        # - Chart Frame for output$tabulations_categoriesChart
+        plotFrame <- isolate(tabsDataset()) %>%
+          group_by(Category) %>% 
+          summarise(Usage = sum(Usage)) %>%
+          arrange(desc(Usage))
+        # - top 25 categories:
+        if (dim(plotFrame)[1] > 25) {
+          plotFrame <- plotFrame[1:25, ]
+        }
+        plotFrame$Category <- factor(plotFrame$Category, 
+                                    levels = plotFrame$Category[order(-plotFrame$Usage)])
+        # - express labels as K, M:
+        plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
+          if (x >= 1e+03 & x < 1e+06) {
+            out <- paste(round(x/1e+03, 1), "K", sep = "")
+          } else if (x > 1e+06) {
+            out <- paste(round(x/1e+06, 1), "M", sep = "")
+          } else {
+            out <- as.character(x)
+          }
+          return(out)
+        })
+        # - Plot
+        ggplot(plotFrame,
+               aes(x = Category, y = Usage, label = Label)) +
+          geom_bar(stat = "identity", width = .6, fill = "#4c8cff") +
+          xlab('Category') + ylab('Entity Usage') +
+          ylim(0, max(plotFrame$Usage) + .1*max(plotFrame$Usage)) +
+          scale_y_continuous(labels = comma) + 
+          geom_label(size = 3, vjust = -.1) +
+          theme_minimal() +
+          theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
+          theme(axis.title.x = element_text(size = 12)) +
+          theme(axis.title.y = element_text(size = 12)) +
+          theme(plot.title = element_text(size = 15)) %>%
+          withProgress(message = 'Generating plot',
+                       min = 0,
+                       max = 1,
+                       value = 1, {incProgress(amount = 0)})
+      })
+      # - Download Frame: tabulations_categoriesChart
+      tabulations_categoriesDownload_Frame <- reactive({
+        plotFrame <- isolate(tabsDataset()) %>%
+          group_by(Category) %>% 
+          summarise(Usage = sum(Usage)) %>%
+          arrange(desc(Usage))
+        plotFrame
+      })
+      # - Download: tabulations_categoriesChart
+      output$tabulations_categoriesDownload_Frame <- downloadHandler(
+        filename = function() {
+          'WDCM_Data.csv'},
+        content = function(file) {
+          write.csv(tabulations_categoriesDownload_Frame(),
+                    file,
+                    quote = FALSE,
+                    row.names = FALSE)
+        },
+        contentType = "text/csv"
+      )
+      
+      #### ---  Chart: tabulations_projectTypesChart
+      output$tabulations_projectTypesChart <- renderPlot({
+        # - Chart Frame for output$tabulations_projectTypesChart
+        plotFrame <- isolate(tabsDataset()) %>%
+          group_by(`Project Type`) %>% 
+          summarise(Usage = sum(Usage)) %>%
+          arrange(desc(Usage))
+        # - top 25 categories:
+        if (dim(plotFrame)[1] > 25) {
+          plotFrame <- plotFrame[1:25, ]
+        }
+        plotFrame$`Project Type` <- factor(plotFrame$`Project Type`, 
+                                     levels = plotFrame$`Project Type`[order(-plotFrame$Usage)])
+        # - express labels as K, M:
+        plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
+          if (x >= 1e+03 & x < 1e+06) {
+            out <- paste(round(x/1e+03, 1), "K", sep = "")
+          } else if (x > 1e+06) {
+            out <- paste(round(x/1e+06, 1), "M", sep = "")
+          } else {
+            out <- as.character(x)
+          }
+          return(out)
+        })
+        # - Plot
+        ggplot(plotFrame,
+               aes(x = `Project Type`, y = Usage, label = Label)) +
+          geom_bar(stat = "identity", width = .6, fill = "#4c8cff") +
+          xlab('Project Type') + ylab('Entity Usage') +
+          ylim(0, max(plotFrame$Usage) + .1*max(plotFrame$Usage)) +
+          scale_y_continuous(labels = comma) + 
+          geom_label(size = 3, vjust = -.1) +
+          theme_minimal() +
+          theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
+          theme(axis.title.x = element_text(size = 12)) +
+          theme(axis.title.y = element_text(size = 12)) +
+          theme(plot.title = element_text(size = 15)) %>%
+          withProgress(message = 'Generating plot',
+                       min = 0,
+                       max = 1,
+                       value = 1, {incProgress(amount = 0)})
+      })
+      # - Download Frame: tabulations_projectTypesChart
+      tabulations_projectTypesChartDownload_Frame <- reactive({
+        plotFrame <- isolate(tabsDataset()) %>%
+          group_by(`Project Type`) %>% 
+          summarise(Usage = sum(Usage)) %>%
+          arrange(desc(Usage))
+        plotFrame
+      })
+      # - Download: tabulations_projectTypesChart
+      output$tabulations_projectTypesChart_Frame <- downloadHandler(
+        filename = function() {
+          'WDCM_Data.csv'},
+        content = function(file) {
+          write.csv(tabulations_projectTypesChartDownload_Frame(),
+                    file,
+                    quote = FALSE,
+                    row.names = FALSE)
+        },
+        contentType = "text/csv"
+      )
+      
+      #### ---  Chart: crosstabulations_projectsCategoriesChart
+      output$crosstabulations_projectsCategoriesChart <- renderPlot({
+        # - Chart Frame for output$crosstabulations_projectsCategoriessChart
+        plotFrame <- isolate(tabsDataset()) %>%
+          arrange(desc(Usage))
+        projectOrder <- plotFrame %>%
+          group_by(Project) %>% 
+          summarise(Usage = sum(Usage)) %>%
+          arrange(desc(Usage))
+        selProj <- projectOrder$Project[1:25]
+        plotFrame <- plotFrame %>% 
+          filter(Project %in% selProj)
+        plotFrame$Project <- factor(plotFrame$Project, 
+                                           levels = selProj)
+        # - express labels as K, M:
+        plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
+          if (x >= 1e+03 & x < 1e+06) {
+            out <- paste(round(x/1e+03, 1), "K", sep = "")
+          } else if (x > 1e+06) {
+            out <- paste(round(x/1e+06, 1), "M", sep = "")
+          } else {
+            out <- as.character(x)
+          }
+          return(out)
+        })
+        # - Plot
+        ggplot(plotFrame,
+               aes(x = Project, y = Usage, label = Label)) +
+          geom_line(size = .25, color = "#4c8cff", group = 1) +
+          geom_point(size = 1.5, color = "#4c8cff") + 
+          geom_point(size = 1, color = "white") + 
+          geom_text_repel(aes(label = plotFrame$Label), 
+                          size = 3) +
+          facet_wrap(~ Category, ncol = 3, scales = "free_y") +
+          xlab('Project') + ylab('Entity Usage') +
+          ylim(0, max(plotFrame$Usage) + .5*max(plotFrame$Usage)) +
+          scale_y_continuous(labels = comma) + 
+          theme_minimal() +
+          theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
+          theme(axis.title.x = element_text(size = 12)) +
+          theme(axis.title.y = element_text(size = 12)) +
+          theme(plot.title = element_text(size = 15)) %>%
+          withProgress(message = 'Generating plot',
+                       min = 0,
+                       max = 1,
+                       value = 1, {incProgress(amount = 0)})
+      })
+      # - Download Frame: crosstabulations_projectsCategoriesChart
+      crosstabulations_projectsCategoriesChartDownload_Frame <- reactive({
+        plotFrame <- isolate(tabsDataset()) %>%
+          arrange(desc(Usage))
+        plotFrame
+      })
+      # - Download: crosstabulations_projectsCategoriesFrame
+      output$crosstabulations_projectsCategoriesFrame <- downloadHandler(
+        filename = function() {
+          'WDCM_Data.csv'},
+        content = function(file) {
+          write.csv(crosstabulations_projectsCategoriesChartDownload_Frame(),
+                    file,
+                    quote = FALSE,
+                    row.names = FALSE)
+        },
+        contentType = "text/csv"
+      )
+      
+      #### ---  Chart: crosstabulations_projectTypesCategoriesChart
+      output$crosstabulations_projectTypesCategoriesChart <- renderPlot({
+        # - Chart Frame for output$crosstabulations_projectTypesCategoriesChart
+        plotFrame <- isolate(tabsDataset()) %>%
+          group_by(`Project Type`, Category) %>% 
+          summarise(Usage = sum(Usage)) %>% 
+          arrange(desc(Usage))
+        projectTypeOrder <- plotFrame %>% 
+          group_by(`Project Type`) %>% 
+          summarise(Usage = sum(Usage)) %>% 
+          arrange(desc(Usage))
+        plotFrame$`Project Type` <- factor(plotFrame$`Project Type`, 
+                                    levels = projectTypeOrder$`Project Type`)
+        # - express labels as K, M:
+        plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
+          if (x >= 1e+03 & x < 1e+06) {
+            out <- paste(round(x/1e+03, 1), "K", sep = "")
+          } else if (x > 1e+06) {
+            out <- paste(round(x/1e+06, 1), "M", sep = "")
+          } else {
+            out <- as.character(x)
+          }
+          return(out)
+        })
+        # - Plot
+        ggplot(plotFrame,
+               aes(x = `Project Type`, y = Usage, label = Label)) +
+          geom_line(size = .25, color = "#4c8cff", group = 1) +
+          geom_point(size = 1.5, color = "#4c8cff") + 
+          geom_point(size = 1, color = "white") + 
+          geom_text_repel(aes(label = plotFrame$Label), 
+                          size = 3) +
+          facet_wrap(~ Category, ncol = 3, scales = "free_y") +
+          xlab('Project Type') + ylab('Entity Usage') +
+          ylim(0, max(plotFrame$Usage) + .5*max(plotFrame$Usage)) +
+          scale_y_continuous(labels = comma) + 
+          theme_minimal() +
+          theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
+          theme(axis.title.x = element_text(size = 12)) +
+          theme(axis.title.y = element_text(size = 12)) +
+          theme(plot.title = element_text(size = 15)) %>%
+          withProgress(message = 'Generating plot',
+                       min = 0,
+                       max = 1,
+                       value = 1, {incProgress(amount = 0)})
+      })
+      # - Download Frame: crosstabulations_projectTypeCategoriesChart
+      crosstabulations_projectTypeCategoriesChartDownload_Frame <- reactive({
+        plotFrame <- isolate(tabsDataset()) %>%
+          group_by(`Project Type`, Category) %>% 
+          summarise(Usage = sum(Usage)) %>% 
+          arrange(desc(Usage))
+        plotFrame
+      })
+      # - Download: crosstabulations_projectTypeCategoriesChartFrame
+      output$crosstabulations_projectTypeCategoriesChartFrame <- downloadHandler(
+        filename = function() {
+          'WDCM_Data.csv'},
+        content = function(file) {
+          write.csv(crosstabulations_projectTypeCategoriesChartDownload_Frame(),
+                    file,
+                    quote = FALSE,
+                    row.names = FALSE)
+        },
+        contentType = "text/csv"
+      )
+      
+  }, ignoreNULL = FALSE)
   
     
   

@@ -260,10 +260,10 @@ shinyUI(
                                                                               with the selection of semantic categories from the Select categories field, and the obtained results will refer only 
                                                                               to the Wikidata items from the current selection of client projects <i>and</i> semantic categories. 
                                                                               In other words: <i>disjunction</i> operates inside the two search fields, while <i>conjunction</i> operates 
-                                                                              across the two search fields.<br> <b>Note:</b> The Dashboard will initialize a random choice of five 
-                                                                              projects and three semantic categories. All charts will present at most 25 top projects in respect to the 
-                                                                              Wikidata usage and relative to the current selection; however, <b>complete selection data sets</b> are available for 
-                                                                              download (<i>.csv</i>) beneath each chart.</font>'),
+                                                                              across the two search fields.<br> <b>Note:</b> The Dashboard will initialize a choice of three project types 
+                                                                              (<i>Wikipedia</i>, <i>Wikinews</i>, and <i>Wiktionary</i>) and a random choice of six semantic categories. All charts will present at 
+                                                                              most 25 top projects in respect to the Wikidata usage and relative to the current selection; however, <b>complete 
+                                                                              selection data sets</b> are available for download (<i>.csv</i>) beneath each chart.</font>'),
                                                                          br(), br()
                                                                          )
                                                                 ),

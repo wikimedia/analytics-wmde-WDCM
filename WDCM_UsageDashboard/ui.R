@@ -230,17 +230,88 @@ shinyUI(
                                               tabPanel(title = "Tabs/Crosstabs",
                                                        id = "tabs",
                                                        fluidRow(
-                                                         column(width = 12
+                                                         column(width = 12,
+                                                                fluidRow(
+                                                                  column(width = 6,
+                                                                         br(),
+                                                                         HTML('<font size = 2>Here you can make <b>selections</b> of client projects and semantic categories to learn about Wikidata 
+                                                                              usage across them.<br> <b>Note:</b> You can search and add projects into the <i>Search projects</i> field by 
+                                                                              using (a) <b>project names</b> (e.g. <i>enwiki</i>, <i>dewiki</i>, <i>sawikiquote</i>, and similar or (b) by using 
+                                                                              <b>project types</b> that start with <b>"_"</b> (underscore, e.g. <i>_Wikipedia</i>, <i>_Wikisource</i>, <i>_Commons</i>, and 
+                                                                              similar; try typing anything into the Select projects field that starts with an underscore). Please note that by selecting 
+                                                                              a project type (again: <i>_Wikipedia</i>, <i>_Wikiquote</i>, and similar) you are selecting <b>all</b> client 
+                                                                              projects of the respective type, and that\'s potentially a lot of data. The Dashboard will pick unique 
+                                                                              projects from whatever you have inserted into the Search projects field. The selection of projects will be intesected 
+                                                                              with the selection of semantic categories from the Select categories field, and the obtained results will refer only 
+                                                                              to the Wikidata items from the current selection of client projects <i>and</i> semantic categories. 
+                                                                              In other words: <i>disjunction</i> operates inside the two search fields, while <i>conjunction</i> operates 
+                                                                              across the two search fields.<br> <b>Note:</b> The Dashboard will initialize a random choice of five 
+                                                                              projects and three semantic categories. All charts will present at most 25 top projects in respect to the 
+                                                                              Wikidata usage and relative to the current selection; however, <b>complete selection data sets</b> are available for 
+                                                                              download (<i>.csv</i>) beneath each chart.</font>'),
+                                                                         br(), br()
+                                                                         )
+                                                                ),
+                                                                fluidRow(
+                                                                  column(width = 3,
+                                                                         selectizeInput('selectProject',
+                                                                                        'Search projects:',
+                                                                                        choices = NULL,
+                                                                                        multiple = TRUE)
+                                                                         ),
+                                                                  column(width = 3,
+                                                                         selectizeInput('selectCategories',
+                                                                                        'Search categories:',
+                                                                                        choices = NULL,
+                                                                                        multiple = TRUE)
+                                                                  )
+                                                                ),
+                                                                fluidRow(
+                                                                  column(width = 2,
+                                                                         actionButton('applySelection',
+                                                                                      label = "Apply Selection",
+                                                                                      width = '70%',
+                                                                                      icon = icon("database", 
+                                                                                                  class = NULL, 
+                                                                                                  lib = "font-awesome")
+                                                                                      )
+                                                                         )
+                                                                  ),
+                                                                fluidRow(
+                                                                  column(width = 12,
+                                                                         hr()
+                                                                         )
+                                                                ),
+                                                                fluidRow(
+                                                                  column(width = 6,
+                                                                         h4('Projects'),
+                                                                         plotOutput('tabulations_projectsChart'),
+                                                                         downloadButton('tabulations_projectsDownload_Frame',
+                                                                                        'Data (csv)')
+                                                                         ),
+                                                                  column(width = 6,
+                                                                         h4('Categories'),
+                                                                         plotOutput('tabulations_categoriesChart'),
+                                                                         downloadButton('tabulations_categoriesDownload_Frame',
+                                                                                        'Data (csv)')
+                                                                  )
+                                                                )
+                                                                )
+                                                         ),
+                                                       fluidRow(
+                                                         column(width = 12,
+                                                                hr()
                                                                 )
                                                          )
                                                        ), # - tabPanel Tabs/Crosstabs END
+                                              
                                               tabPanel(title = "Tables",
                                                        id = "tables",
                                                        fluidRow(
                                                          column(width = 6,
                                                                 br(),
-                                                                HTML('Here you can access <b> some tabulated and cross-tabulated raw data</b> on Wikidata usage. <br> 
-                                                                     All tables can be searched and sorted by any of the respective columns.'),
+                                                                HTML('<font size = 2>Here you can access <b> some tabulated and cross-tabulated raw data</b> on Wikidata usage. <br> 
+                                                                     All tables can be searched and sorted by any of the respective columns.</font>'),
                                                                 br(), br()
                                                          )
                                                        ),

@@ -134,6 +134,7 @@ shinyUI(
                                                                          ),
                                                                          fluidRow(
                                                                            column(width = 12,
+                                                                                  br(), br(),
                                                                                   htmlOutput('categoryItems_overview_Title'),
                                                                                   HTML("<font size = 2><b>Note: </b>In the absence of English item label the Wikidata item ID 
                                                                                                 is used in place of it.</font>"),
@@ -162,6 +163,7 @@ shinyUI(
                                                                 ),
                                                                 fluidRow(
                                                                   column(width = 12,
+                                                                         br(), br(),
                                                                          HTML('<b>Wikidata item usage per semantic category in each project type</b><br>
                                                                               <font size="2"><b>Note:</b> Item usage count is given on a logarithmic scale.</font>'),
                                                                          br(), br(),
@@ -201,6 +203,7 @@ shinyUI(
                                                                                     ),
                                                                                   fluidRow(
                                                                                     column(width = 12,
+                                                                                           br(), br(),
                                                                                            htmlOutput('projectOverview_relativeRank_Title'),
                                                                                            br(), br(),
                                                                                            withSpinner(plotOutput('projectOverview_relativeRank',
@@ -211,6 +214,7 @@ shinyUI(
                                                                                     ),
                                                                                   fluidRow(
                                                                                     column(width = 12,
+                                                                                           br(), br(),
                                                                                            htmlOutput('projectOverview_semantics_Title'),
                                                                                            HTML("<font size = 2><b>Note: </b>We study the distribution of Wikidata usage across the semantic categories to 
                                                                                                 determine which client projects use Wikidata in a similar way. In this graph, each project points towards the one 
@@ -223,6 +227,7 @@ shinyUI(
                                                                                   ),
                                                                                   fluidRow(
                                                                                     column(width = 12, 
+                                                                                           br(), br(),
                                                                                            htmlOutput('projectOverview_topItems_Title'),
                                                                                            HTML("<font size = 2><b>Note: </b>In the absence of English item label the Wikidata item ID 
                                                                                                 is used in place of it.</font>"),
@@ -300,13 +305,15 @@ shinyUI(
                                                                 fluidRow(
                                                                   column(width = 6,
                                                                          h4('Projects'),
-                                                                         withSpinner(plotOutput('tabulations_projectsChart', height = "600px")),
+                                                                         withSpinner(plotOutput('tabulations_projectsChart', 
+                                                                                                height = "600px")),
                                                                          downloadButton('tabulations_projectsDownload_Frame',
                                                                                         'Data (csv)')
                                                                          ),
                                                                   column(width = 6,
                                                                          h4('Categories'),
-                                                                         withSpinner(plotOutput('tabulations_categoriesChart', height = "600px")),
+                                                                         withSpinner(plotOutput('tabulations_categoriesChart', 
+                                                                                                height = "600px")),
                                                                          downloadButton('tabulations_categoriesDownload_Frame',
                                                                                         'Data (csv)')
                                                                   )
@@ -319,7 +326,8 @@ shinyUI(
                                                                 fluidRow(
                                                                   column(width = 6,
                                                                          h4('Project Types'),
-                                                                         withSpinner(plotOutput('tabulations_projectTypesChart', height = "600px")),
+                                                                         withSpinner(plotOutput('tabulations_projectTypesChart', 
+                                                                                                height = "600px")),
                                                                          downloadButton('tabulations_projectTypesChart_Frame',
                                                                                         'Data (csv)')
                                                                   ),
@@ -334,7 +342,8 @@ shinyUI(
                                                                 fluidRow(
                                                                   column(width = 12,
                                                                          h4('Project vs Categories'),
-                                                                         withSpinner(plotOutput('crosstabulations_projectsCategoriesChart', height = "850px")),
+                                                                         withSpinner(plotOutput('crosstabulations_projectsCategoriesChart', 
+                                                                                                height = "850px")),
                                                                          downloadButton('crosstabulations_projectsCategoriesFrame',
                                                                                         'Data (csv)')
                                                                          )
@@ -347,7 +356,8 @@ shinyUI(
                                                                 fluidRow(
                                                                   column(width = 12,
                                                                          h4('Project Types vs Categories'),
-                                                                         withSpinner(plotOutput('crosstabulations_projectTypesCategoriesChart', height = "850px")),
+                                                                         withSpinner(plotOutput('crosstabulations_projectTypesCategoriesChart', 
+                                                                                                height = "850px")),
                                                                          downloadButton('crosstabulations_projectTypeCategoriesChartFrame',
                                                                                         'Data (csv)')
                                                                   )

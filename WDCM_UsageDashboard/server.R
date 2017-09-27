@@ -18,17 +18,13 @@ library(dplyr)
 library(reshape2)
 ### --- compute
 library(parallelDist)
-library(smacof)
 ### --- visualization
-library(wordcloud)
 library(RColorBrewer)
 library(visNetwork)
-library(rbokeh)
 library(networkD3)
 library(ggplot2)
 library(ggrepel)
 library(scales)
-library(ggvis)
 
 ### --- Server (Session) Scope
 ### --------------------------------
@@ -784,8 +780,6 @@ shinyServer(function(input, output, session) {
         selProj <- projectOrder$Project[1:25]
         plotFrame <- plotFrame %>% 
           filter(Project %in% selProj)
-        plotFrame$Project <- factor(plotFrame$Project, 
-                                           levels = selProj)
         # - express labels as K, M:
         plotFrame$Label <- sapply(plotFrame$Usage, function(x) {
           if (x >= 1e+03 & x < 1e+06) {
@@ -797,17 +791,19 @@ shinyServer(function(input, output, session) {
           }
           return(out)
         })
+        plotFrame$Project <- factor(plotFrame$Project,
+                                    levels = selProj)
         # - Plot
         ggplot(plotFrame,
                aes(x = Project, y = Usage, label = Label)) +
           geom_line(size = .25, color = "#4c8cff", group = 1) +
           geom_point(size = 1.5, color = "#4c8cff") + 
           geom_point(size = 1, color = "white") + 
-          geom_text_repel(aes(label = plotFrame$Label), 
+          geom_text_repel(data = plotFrame, 
+                          aes(x = Project, y = Usage, label = Label), 
                           size = 3) +
           facet_wrap(~ Category, ncol = 3, scales = "free_y") +
           xlab('Project') + ylab('Entity Usage') +
-          ylim(0, max(plotFrame$Usage) + .5*max(plotFrame$Usage)) +
           scale_y_continuous(labels = comma) + 
           theme_minimal() +
           theme(axis.text.x = element_text(angle = 90, size = 12, hjust = 1)) +
@@ -868,7 +864,8 @@ shinyServer(function(input, output, session) {
           geom_line(size = .25, color = "#4c8cff", group = 1) +
           geom_point(size = 1.5, color = "#4c8cff") + 
           geom_point(size = 1, color = "white") + 
-          geom_text_repel(aes(label = plotFrame$Label), 
+          geom_text_repel(data = plotFrame, 
+                          aes(x = `Project Type`, y = Usage, label = Label), 
                           size = 3) +
           facet_wrap(~ Category, ncol = 3, scales = "free_y") +
           xlab('Project Type') + ylab('Entity Usage') +

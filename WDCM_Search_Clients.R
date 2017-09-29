@@ -197,7 +197,7 @@ for (i in 1:length(wdcmSearchReport$category)) {
 # - store report:
 setwd(auxDir)
 write.csv(wdcmSearchReport, 
-          paste("wdcmSearchReport_", Sys.time(), ".csv", sep = ""))
+          paste("wdcmSearchReport_", strsplit(as.character(Sys.time()), split = " ")[[1]][1], ".csv", sep = ""))
 
 
 

@@ -136,11 +136,6 @@ for (i in 1:length(projectsTracking)) {
 }
 
 # - save wdcmSqoopReport
-fileName <- paste("wdcmSqoopReport_", Sys.time(), ".csv", sep = "")
+fileName <- paste("wdcmSqoopReport_", strsplit(as.character(Sys.time()), split = " ")[[1]][1], ".csv", sep = "")
 write.csv(wdcmSqoopReport, fileName)
-
-
-
-
-
 

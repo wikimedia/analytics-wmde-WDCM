@@ -1,7 +1,7 @@
 
 ### ---------------------------------------------------------------------------
 ### --- WDCM Process Module, v. Beta 0.1
-### --- Script: WDCM_Process_v2.R, v. Beta 0.1
+### --- Script: WDCM_Process.R, v. Beta 0.1
 ### ---------------------------------------------------------------------------
 ### --- DESCRIPTION:
 ### --- WDCM_Process_v2.R takes a list of .tsv files that present

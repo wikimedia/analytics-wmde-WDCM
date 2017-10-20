@@ -18,9 +18,8 @@
 ### --- wdcm_maintable Hive table on hdfs, database: goransm
 ### ---------------------------------------------------------------------------
 ### --- OUTPUT: 
-### --- Results are stored locally as .tsv files on production,
-### --- with each file encompassing the data for one client project.
-### --- The outputs are stored locally on stat1005.eqiad.wmnet in:
+### --- Results are stored locally as .tsv files on production -
+### --- - on stat1005.eqiad.wmnet - in:
 ### --- /home/goransm/WDCM_DataOUT/WDCM_DataOUT_ClientWDUsage
 ### --- These output .tsv files migrate to Labs:
 ### --- wikidataconcepts.wmflabs.org Cloud VPS instance

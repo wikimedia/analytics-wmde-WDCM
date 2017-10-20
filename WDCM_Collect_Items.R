@@ -1,4 +1,4 @@
-### --- WDCM Script
+
 ### ---------------------------------------------------------------------------
 ### --- WDCM Search Module, v. Beta 0.1
 ### --- Script: WDCM_Collect_Items.R, v. Beta 0.1

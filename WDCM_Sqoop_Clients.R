@@ -12,7 +12,7 @@
 ### --- WDCM_Sqoop_Clients.R takes a list of client projects
 ### --- that maintain the wbc_entity_usage tables
 ### --- and sqoopes these tables into a single Hadoop Avro file
-### --- on production (currently: stat1002.eqiad.wmnet).
+### --- on production (currently: stat1005.eqiad.wmnet).
 ### ---------------------------------------------------------------------------
 ### --- OUTPUT: 
 ### --- Results are stored on the Hadoop cluster

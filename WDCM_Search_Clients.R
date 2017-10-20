@@ -10,7 +10,7 @@
 ### --- DESCRIPTION:
 ### --- WDCM_Search_Clients.R takes a list of
 ### --- item IDs from Wikidata (the list is delivered by
-### --- the WDCM_Search_Items.R script) and searches for their
+### --- the WDCM_Collect_Items.R script) and searches for their
 ### --- usage across the Wikimedia projects in Hadoop:
 ### --- database: goransm
 ### --- directory: wdcmsqoop

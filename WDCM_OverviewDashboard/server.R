@@ -372,10 +372,10 @@ shinyServer(function(input, output, session) {
     datatable(wdcmProjectCategory,
     options = list(
       pageLength = 20,
-      autoWidth = TRUE,
+      width = '100%',
       columnDefs = list(list(className = 'dt-center', targets = "_all"))
       ),
-    rownames= FALSE
+    rownames = FALSE
     )
   }) %>% withProgress(message = 'Generating data',
                       min = 0,
@@ -389,10 +389,10 @@ shinyServer(function(input, output, session) {
     datatable(dataSet,
               options = list(
                 pageLength = 20,
-                autoWidth = TRUE,
+                width = '100%',
                 columnDefs = list(list(className = 'dt-center', targets = "_all"))
               ),
-              rownames= FALSE
+              rownames = FALSE
     )
   }) %>% withProgress(message = 'Generating data',
                       min = 0,

@@ -52,6 +52,11 @@ st <- fetch(res, -1)
 dbClearResult(res)
 colnames(st) <- "tables"
 
+### --- SET CHARACTER SET utf8
+q <- "SET CHARACTER SET utf8;"
+res <- dbSendQuery(con, q)
+dbClearResult(res)
+
 ### --- fetch wdcm2_project
 q <- "SELECT * FROM wdcm2_project;"
 res <- dbSendQuery(con, q)

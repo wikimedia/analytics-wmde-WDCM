@@ -1,0 +1,285 @@
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US">
+<head>
+<title>Wikidata Concepts Monitor (WDCM)</title>
+<style type="text/css">
+body, html {
+margin: 0;
+padding: 0;
+font-family: Liberation Sans;
+background-color: ##FFFFFF;
+color: #000000;
+}
+a {
+text-decoration: none;
+}
+a:hover {
+text-decoration: underline;
+}
+#titleBar {
+border-bottom: 1px solid #0d55a2;
+overflow: hidden;
+height: 80px;
+background-color: #0d55a2;
+}
+#titleBar #container {
+margin-top: 14px;
+}
+#titleBar h1 {
+margin: 0 auto 0.5em;
+padding: 0.2em;
+text-align: center;
+color: white;
+font-family: Liberation Sans;
+}
+#intro {
+border: 1px solid #cccccc;
+margin: 1em 1em 0;
+padding: 0.75em;
+background-color: #B5D7FC;
+text-align: center;
+font-size: 18px;
+}
+#intro p {
+margin: 0.3em 0;
+}
+#outer-content {
+max-width: 910px;
+margin-left: auto;
+margin-right: auto;
+}
+#content {
+margin: 1em auto;
+float: left;
+}
+#main {
+margin-right: 350px;
+float: left;
+line-height: 18px;
+}
+#shiny {
+border-left: 1px solid #aaaaaa;
+float: left;
+width: 305px;
+margin-left: -330px;
+padding-left: 20px;
+}
+#shiny iframe {
+margin-top: 30px;
+}
+.caption {
+font-size: 13px;
+}
+code {
+border: 1px solid #aaaaaa;
+padding: 0 0.5em;
+background-color: #e5e5e5;
+-moz-border-radius-topleft: 3px;
+-moz-border-radius-topright: 3px;
+-moz-border-radius-bottomright: 3px;
+-moz-border-radius-bottomleft: 3px;
+}
+
+.box{
+width:100%;
+border: 1px solid #cccccc;
+padding: 5px;
+}
+
+.blue{
+background:#B5D7FC;
+}
+
+</style>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+</head>
+<body>
+<div id="titleBar">
+<div id="container">
+<h1>Wikidata Concepts Monitor<br>
+</h1>
+</div>
+</div>
+<div id="outer-content">
+<div id="intro">
+<p><span style="font-weight: bold;">How is Wikidata used across the
+Wikimedia sister projects?</span><strong></strong> </p>
+</div>
+<div id="content">
+<div id="main">
+<h2>0. What is this?<br>
+</h2>
+<small><span style="font-weight: bold;">Wikidata Concepts Monitor (WDCM)</span>
+is a system of dashboards that monitor the usage of <a
+href="https://www.wikidata.org/wiki/Wikidata:Main_Page" target="_blank">Wikidata</a>
+items on WMF sister projects. The dashboards are currently supported by
+(1) analytical overviews of Wikidata item usage that are organized in a
+number of semantic categories, (2) per sister project analytical
+overviews of Wikidata item usage, and (3) <a
+href="https://en.wikipedia.org/wiki/Distributional_semantics"
+target="_blank">distributional semantics</a>
+models of Wikidata usage that offer analytical insights into the
+structure of Wikidata item usage similarity across the sister projects
+and/or semantic categories of Wikidata items.</small><br>
+<br>
+<div class="box blue">
+<span style="font-weight: bold; font-style: italic;">I</span><small
+style="font-style: italic;"><span style="font-weight: bold;">n other
+words, here you can discover </span><span style="font-weight: bold;">how
+much does a particular project use Wikidata</span><span
+style="font-weight: bold;">, </span><span style="font-weight: bold;">what
+semantic categories of Wikidata items are more popular in a particular
+project or a subset of projects</span><span style="font-weight: bold;">,
+</span><span style="font-weight: bold;">how similar are two or more
+projects in respect to the way they utilize Wikidata</span><span
+style="font-weight: bold;">, </span><span style="font-weight: bold;">what
+are the most popular Wikidata items in a particular project or a set of
+projects</span><span style="font-weight: bold;">, and similar. </span></small><br>
+</div>
+<h2><br>
+</h2>
+<h2>1. Getting started</h2>
+<small>In order to be able to use the WDCM system in a way it was ment
+and designed to be used, <span style="font-style: italic;">i.e.</span>
+with a clear understanding of <span style="font-style: italic;">what
+is it built for</span> and <span style="font-style: italic;">why it
+was built that way</span>,
+you probably need to get to learn about some important WDCM definitions
+(and the constraints that dictated them) first. You can do that by
+reading through the Definitions section of the WDCM Wikitech Technical
+Documentation <span style="font-weight: bold;">[[LINK HERE!!!]]</span>.
+Do not panic, please: it is written in a language that a non-technical
+person who does not necessarily care about <a
+href="https://en.wikipedia.org/wiki/Data_science" target="_blank">Data
+Science</a> or <a
+href="https://en.wikipedia.org/wiki/Cognitive_science" target="_blank">Cognitive
+Science</a> can understand.</small><br>
+<br>
+<small>Obviously, the current version of the WDCM system focuses on <a
+href="https://www.wikidata.org/wiki/Help:Items" target="_blank">Wikidata
+item</a> usage.<br>
+<br>
+<span style="font-weight: bold;">To start browsing the WDCM system</span>,
+a list of currently available dashboards is provided on the navigation
+sidebar to the right.</small><br>
+<br>
+<h2>2. Who built the WDCM system?<br>
+</h2>
+<small>The WDCM system is developed by <a
+href="https://www.wikidata.org/wiki/User:GoranSM" target="_blank">Goran
+S. Milovanović, Data Scientist, Wikimedia Foundaiton Deutschland</a>,
+with a help of many people to prepare complex ETL procedures and
+productionize the system, such as <a
+href="https://wikimediafoundation.org/wiki/User:Milimetric_%28WMF%29"
+target="_blank">Dan Florin Andreescu, Software engineer, Wikimedia
+Foundation</a>, and <a
+href="https://www.wikidata.org/wiki/User:Addshore" target="_blank"><span
+style="color: rgb(34, 34, 34); font-family: &quot;Helvetica Neue&quot;,Helvetica,&quot;Lucida Grande&quot;,Tahoma,Verdana,sans-serif; font-size: 25.2px; font-style: normal; font-weight: normal; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; widows: 2; word-spacing: 0px; background-color: rgb(255, 255, 255); display: inline ! important; float: none;"></span>Adam
+Shorland, Software Developer, Wikimedia Foundation Deutschland</a>. <a
+href="https://www.wikidata.org/wiki/Q18016466" target="_blank">Lydia
+Pintcher, Product Manager of Wikidata, Wikimedia Foundation Deutschland</a>,
+supervised the development of the system and contributed the currently
+used WDCM Semantic Taxonomy <span style="font-weight: bold;">[[LINK
+HERE!!!]]</span> that the system relies on.&nbsp; The software development of
+the WDCM system is supervised by <a
+href="https://www.wikidata.org/wiki/User:Tobias_Gritschacher_%28WMDE%29"
+target="_blank">Tobias Gritschacher, Engineering Manager, Wikimedia
+Foundation Deutschland</a>, while <a
+href="https://www.mediawiki.org/wiki/User:Jan_Dittrich_%28WMDE%29"
+target="_blank">Jan Dittrich, UX Design / Research, Wikimedia
+Foundation Deutschland</a> supervises the UI/UX aspects.</small><br>
+<br>
+<h2>3. How it works?<br>
+</h2>
+<small>The WDCM Wikitech Technical
+Documentation <span style="font-weight: bold;">[[LINK HERE!!!]]</span>
+should be providing enough information in respect to how WDCM works. To
+put it in a nutshell, the current version of the WDCM system is fully
+developed in <a href="https://www.r-project.org/" target="_blank">R</a>,
+and supported by <a href="https://hive.apache.org/" target="_blank">Apache
+Hive</a> and&nbsp; <a href="http://sqoop.apache.org/" target="_blank">Apache
+Sqoop</a> to enable Big Data processing of the <a
+href="https://www.mediawiki.org/wiki/Wikibase/Schema/wbc_entity_usage"
+target="_blank">wbc_entity_usage tables</a> that provide for Wikidata
+usage client-side tracking over sister projects. <a
+href="https://mariadb.org/" target="_blank">MariaDB</a> runs the WDCM
+dashboards back-end support, while the dashboards themselves are built
+in the <a href="https://shiny.rstudio.com/" target="_blank">RStudio
+Shiny</a> framework and hosted by an open source version of the <a
+href="https://www.rstudio.com/products/shiny/shiny-server/"
+target="_blank">RStudio Shiny Server</a>. The WDCM Engine scripts
+perform many data pre-processing procedures before the machine learning
+phase takes over to deliver the results to the front-end, utilizing <a
+href="https://en.wikipedia.org/wiki/Latent_Dirichlet_allocation"
+target="_blank">Latent Dirichlet Allocation</a> and <a
+href="https://en.wikipedia.org/wiki/T-distributed_stochastic_neighbor_embedding"
+target="_blank">t-SNE</a> among other algorithms. The front-end data
+visualizations are developed primarily in {<a href="http://ggplot2.org/"
+target="_blank">ggplot2</a>}, {<a
+href="https://cran.r-project.org/web/packages/visNetwork/index.html"
+target="_blank">visNetwork</a>}, and {<a
+href="http://hafen.github.io/rbokeh/" target="_blank">rBokeh</a>}.<br>
+<br>
+</small>
+<h2>4. Getting in touch and contributing<br>
+</h2>
+<small>Any ideas and contributions are, of course, welcome. If you have
+anything on your mind you should not hesitate to contact <span
+style="font-weight: bold;">Goran S. Milovanovic, Data Scientist, WMDE</span>,&nbsp;
+<a href="mailto:goran.milovanovic_ext@wikimedia.de">goran.milovanovic_ext@wikimedia.de</a>,
+<span style="font-weight: bold;">IRC e-mail:nickname:</span> goransm.</small><span
+style="color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;,Helvetica,Arial,sans-serif; font-size: 14px; font-style: normal; font-weight: normal; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; widows: 2; word-spacing: 0px; background-color: rgb(255, 255, 255); display: inline ! important; float: none;"></span><span
+style="color: rgb(51, 51, 51); font-family: &quot;Helvetica Neue&quot;,Helvetica,Arial,sans-serif; font-size: 14px; font-style: normal; font-weight: normal; letter-spacing: normal; orphans: 2; text-align: start; text-indent: 0px; text-transform: none; white-space: normal; widows: 2; word-spacing: 0px; background-color: rgb(255, 255, 255); display: inline ! important; float: none;"><span>
+</span></span></div>
+
+<div id="shiny">
+
+        <h2>WDCM Dahsboards</h2>
+        <hr>
+        <a href = "http://wdcm.wmflabs.org/WDCM_OverviewDashboard/"><h4>WDCM Overview</h4></a>
+         <a href = "http://wdcm.wmflabs.org/WDCM_OverviewDashboard/"><img src="OverviewDashboard.png" alt="WDCM Overview" style="width:300px;"></a>
+         <br>
+        <div class="caption">
+          The Overview Dashboard provided an introductory overview - the "big picture" of Wikidata usage.
+        </div>
+        <hr>
+
+        <a href = "http://wdcm.wmflabs.org/WDCM_UsageDashboard/"><h4>WDCM Usage</h4></a>
+         <a href = "http://wdcm.wmflabs.org/WDCM_UsageDashboard/"><img src="UsageDashboard.png" alt="WDCM Usage" style="width:300px;"></a>
+         <br>
+        <div class="caption">
+          The Usage Dashboard provides a thorough insight into Wikidata usage across the sister projects and semantic categories.
+        </div>
+        <hr>
+
+        <a href = "http://wdcm.wmflabs.org/WDCM_UsageDashboard/"><h4>WDCM Semantics</h4></a>
+         <a href = "http://wdcm.wmflabs.org/WDCM_UsageDashboard/"><img src="UsageDashboard.png" alt="WDCM Usage" style="width:300px;"></a>
+         <br>
+        <div class="caption">
+        The Semantics Dashboard provides an insight into the distributional
+          semantics of Wikidata usage.
+        </div>
+        <hr>
+
+         <a href = "https://www.wikidata.org/wiki/Wikidata:Main_Page" target = "blank"><img src="Wikidata-logo-en.png" style="width:300px;"></a>
+
+      </div>
+    </div>
+    <hr>
+    <p align="center"><small><span style="font-weight: bold;">This page is
+available under the </span><a style="font-weight: bold;"
+href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank">Creative
+Commons Attribution-ShareAlike License</a><span
+style="font-weight: bold;">. All the WDCM code is
+available under the </span><a style="font-weight: bold;"
+href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html"
+target="_blank">GPL v2 Licence</a><span style="font-weight: bold;">.
+All WDCM code is hosted on </span><a style="font-weight: bold;"
+href="https://gerrit.wikimedia.org" target="_blank">Gerrit</a><span
+style="font-weight: bold;"> and mirrored on </span><a
+style="font-weight: bold;"
+href="https://phabricator.wikimedia.org/diffusion/AWCM/"
+target="_blank">Diffusion</a><span style="font-weight: bold;">.</span><br>
+</small></p>
+  </div>
+</body></html>

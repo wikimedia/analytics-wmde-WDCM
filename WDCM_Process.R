@@ -1,7 +1,7 @@
 
 ### ---------------------------------------------------------------------------
 ### --- WDCM Process Module, v. Beta 0.1
-### --- Script: WDCM_Process.R, v. Beta 0.1
+### --- Script: WDCM_Process_v2.R, v. Beta 0.1
 ### ---------------------------------------------------------------------------
 ### --- DESCRIPTION:
 ### --- WDCM_Process_v2.R takes a list of .tsv files that present
@@ -18,7 +18,7 @@
 ### --- These files are brought to Labs directly from productio
 ### --- (currently the stat1005.eqiad.wmnet statbox)
 ### ---------------------------------------------------------------------------
-### --- OUTPUT: 
+### --- OUTPUT:
 ### ---------------------------------------------------------------------------
 
 ### --- Setup
@@ -725,6 +725,70 @@ dbWriteTable(conn = con,
 dbDisconnect(con)
 rm(wdcm2_project_category); rm(tsneData); gc()
 
-
-
-
+### ---------------------------------------------------------------------------
+### --- wdcm2_itemtopic_ tables
+### ---------------------------------------------------------------------------
+lF <- list.files()
+lF <- lF[grepl("wdcm2_itemtopic_", lF, fixed = T)]
+for (i in 1:length(lF)) {
+  # - check whether the current wdcm2_itemtopic_ table exists:
+  tName <- gsub(".csv", "", lF[i])
+  checkTable <- which(st %in% tName)
+  # - DROP current wdcm2_itemtopic_ table if it exists
+  if (length(checkTable) == 1) {
+    con <- dbConnect(MySQL(), 
+                     host = "tools.labsdb", 
+                     defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                     dbname = "u16664__wdcm_p",
+                     user = mySQLCreds$user,
+                     password = mySQLCreds$password)
+    q <- paste("DROP TABLE ", tName, ";", sep = "")
+    res <- dbSendQuery(con, q)
+    dbClearResult(res)
+    dbDisconnect(con)
+  }
+  # - populate current wdcm2_itemtopic_
+  cTable <- fread(lF[i])
+  colnames(cTable)[1] <- 'eu_entity_id'
+  # - get item labels for current wdcm2_itemtopic_
+  items <- gsub("Q", "", unique(cTable$eu_entity_id), fixed = T)
+  itemList <- paste0(items, collapse = ", ", sep = "")
+  # - fetch English labels where available from wb_terms
+  con <- dbConnect(MySQL(), 
+                   host = "wikidatawiki.labsdb", 
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "wikidatawiki_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  q <- paste("SELECT term_entity_id, term_text FROM wb_terms ",
+             "WHERE ((term_entity_id IN (", itemList, ")) AND ",
+             "(term_language = 'en') AND ",
+             "(term_entity_type = 'item') AND (term_type = 'label'));", 
+             sep = "");
+  rm(itemList)
+  res <- dbSendQuery(con, q)
+  itemLabels <- fetch(res, -1)
+  dbClearResult(res)
+  dbDisconnect(con)
+  itemLabels$term_entity_id <- paste("Q", itemLabels$term_entity_id, sep = "")
+  colnames(itemLabels) <- c('eu_entity_id', 'eu_label')
+  # - insert labels to current wdcm2_itemtopic_
+  cTable <- left_join(cTable, itemLabels, by = 'eu_entity_id')
+  # - recognize missing English labels and replace w. the respective eu_entity_id value
+  cTable$eu_label[is.na(cTable$eu_label)] <- 
+    cTable$eu_entity_id[is.na(cTable$eu_label)]
+  rm(itemLabels); gc()
+  # - write current wdcm2_itemtopic_
+  con <- dbConnect(MySQL(),
+                   host = "tools.labsdb",
+                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
+                   dbname = "u16664__wdcm_p",
+                   user = mySQLCreds$user,
+                   password = mySQLCreds$password)
+  dbWriteTable(conn = con,
+               name = tName,
+               value = cTable,
+               row.names = F,
+               append = F)
+  dbDisconnect(con)
+}

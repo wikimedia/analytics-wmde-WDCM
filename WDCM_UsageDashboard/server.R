@@ -31,7 +31,7 @@ library(scales)
 
 ### --- Credentials
 # setwd('/home/goransm/WMDE/WDCM/WDCM_RScripts/WDCM_Dashboard/aux')
-setwd('/srv/shiny-server/WDCM_Dashboard/aux')
+setwd('/srv/shiny-server/aux')
 
 mySQLCreds <- fread("mySQLCreds.csv", 
                     header = T,

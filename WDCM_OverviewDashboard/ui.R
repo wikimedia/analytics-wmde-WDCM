@@ -345,7 +345,7 @@ shinyUI(
             fluidRow(
               column(width = 12,
                      hr(),
-                     HTML('<b>Wikidata Concepts Monitor :: WMDE 2017</b><br>GitHub: <a href="https://github.com/wmde/WDCM" target = "_blank">WDCM</a><br>'),
+                     HTML('<b>Wikidata Concepts Monitor :: WMDE 2017</b><br>Diffusion: <a href="https://phabricator.wikimedia.org/diffusion/AWCM/" target = "_blank">WDCM</a><br>'),
                      HTML('Contact: Goran S. Milovanovic, Data Analyst, WMDE<br>e-mail: goran.milovanovic_ext@wikimedia.de
                           <br>IRC: goransm'),
                      br(),

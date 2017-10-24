@@ -448,6 +448,55 @@ shinyServer(function(input, output, session) {
   
   }, ignoreNULL = FALSE)
   
+  ### ------------------------------------------
+  ### --- TAB: tabPanel Similarity
+  ### ------------------------------------------
+  
+  ### --- SELECT: update select 'selectCategory2'
+  updateSelectizeInput(session,
+                       'selectCategory2',
+                       "Select Semantic Category:",
+                       choices = categories,
+                       selected = categories[round(runif(1, 1, length(categories)))],
+                       server = TRUE)
+  
+  ### --- OBSERVE: input$selectCategory2
+  observeEvent(input$selectCategory2, {
+    
+    if (!is.null(input$selectCategory2)) {
+      
+      wdcmP <- wdcmProject %>% 
+        select(Project, Usage)
+    
+      projCatFrame <- wdcm2_projects_2dmaps %>% 
+        filter(Category %in% input$selectCategory2) %>% 
+        left_join(wdcmP, by = 'Project')
+      
+      ### --- output$overviewPlotDynamic
+      output$overviewPlotDynamic <- renderRbokeh({
+        outFig <- figure(width = 1400, height = 900, logo = NULL) %>%
+          ly_points(D1, D2, 
+                    data = projCatFrame,
+                    size = log(Usage), 
+                    color = 'Project Type', 
+                    hover = list(Project, Usage)) %>% 
+          x_axis(visible = F) %>% 
+          y_axis(visible = F) %>% 
+          theme_grid(which = c("x", "y"), 
+                     grid_line_color = "white") %>% 
+          theme_plot(outline_line_alpha = 0) %>% 
+          set_palette(discrete_color = pal_color(unname(projectTypeColor)))
+        outFig
+      }) %>% withProgress(message = 'Generating plot',
+                          min = 0,
+                          max = 1,
+                          value = 1, {incProgress(amount = 1)})
+      
+    } else {return(NULL)}
+    
+  }, ignoreNULL = FALSE)
+  
+  
   
 }) ### --- END shinyServer
 

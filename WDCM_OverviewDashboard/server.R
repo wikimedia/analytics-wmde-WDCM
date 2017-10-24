@@ -40,10 +40,6 @@ mySQLCreds <- fread("mySQLCreds.csv",
                     header = T,
                     drop = 1)
 
-currentStats <- fread("currentStats.csv",
-                      header = T,
-                      drop = 1)
-
 ### -- Connect
 con <- dbConnect(MySQL(), 
                  host = "tools.labsdb", 

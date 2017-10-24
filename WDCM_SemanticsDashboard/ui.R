@@ -147,7 +147,7 @@ shinyUI(
                                                               )
                                                               ), # - tabPanel Semantic Models END
                                                      
-                                                     tabPanel(title = "Projects",
+                                                     tabPanel(title = "Project Semantics",
                                                               id = "projects",
                                                               fluidRow(
                                                                 column(width = 12,
@@ -206,7 +206,50 @@ shinyUI(
                                                                                               height = "1000px"))
                                                                 )
                                                               )
-                                                              ) # - tabPanel Projects END
+                                                              ), # - tabPanel Projects END
+                                                     tabPanel(title = "Similarity Maps",
+                                                              id = "similarity",
+                                                              fluidRow(
+                                                                column(width = 12,
+                                                                       fluidRow(
+                                                                         column(width = 6,
+                                                                                br(), 
+                                                                                HTML('<font size = 2>Select a semantic category of Wikidata items to take a look at. A 2D map will be generated where each 
+                                                                                     project is represented by a bubble, and where the distance between the projects corresponds with the similarity in their 
+                                                                                     usage of Wikidata items <i>from the selected category</i>. Think about semantic categories as perspectives from which you 
+                                                                                     can take a look at the structure of similarity that holds among the Wikimedia projects in respect to their usage of Wikidata items.</font>'),
+                                                                                br(), br()
+                                                                                     )
+                                                                                )
+                                                                         )
+                                                                       ),
+                                                              # - fluidRow: Category Selection
+                                                              fluidRow(
+                                                                br(),
+                                                                column(width = 3,
+                                                                       selectizeInput("selectCategory2",
+                                                                                      "Select Category:",
+                                                                                      multiple = F,
+                                                                                      choices = NULL,
+                                                                                      selected = NULL)
+                                                                )
+                                                              ),
+                                                              fluidRow(
+                                                                hr(),
+                                                                column(width = 12,
+                                                                       h4('Similarity Map'),
+                                                                       HTML('<font size = 2>Each bubble represents a client project. 
+                                                                            The size of the bubble reflects the volume of Wikidata usage in the respective project; a logarithmic scale is used in this plot.<br> 
+                                                                            Projects similar in respect to their usage of Wikidata items <i>from the selected category</i> are grouped together. 
+                                                                            Use the tools next to the plot legend to explore the plot and hover over bubbles for details.</font>'),
+                                                                       hr(),
+                                                                       withSpinner(rbokeh::rbokehOutput('overviewPlotDynamic',
+                                                                                                        width = "1400px",
+                                                                                                        height = "900px")
+                                                                       )
+                                                                )
+                                                              )
+                                                              )
                                                      
                                                      ) # - tabBox: Dashboard END
                                               )
@@ -224,18 +267,21 @@ shinyUI(
                                                    <h4>Introduction<h4>
                                                    <br>
                                                    <p><font size = 2>This Dashboard is a part of the <b>Wikidata Concepts Monitor (WDMC)</b>. The WDCM system provides analytics on Wikidata usage
-                                                   across the client projects. The WDCM Overview Dashboard presents the big picture of Wikidata usage; other WDCM dashboards go
-                                                   into more detail. The Overview Dashboard provides insights into <b>(1)</b> the similarities between the client projects in respect to their use of 
-                                                   of Wikidata, as well as <b>(2)</b> the volume of Wikidata usage in every client project, <b>(3)</b> Wikidata usage tendencies, described by the volume of 
-                                                   Wikidata usage in each of the semantic categories of items that are encompassed by the current WDCM edition, <b>(4)</b> the similarities between the 
-                                                   Wikidata semantic categories of items in respect to their usage across the client projects, <b>(5)</b> ranking of client projects in respect to their 
-                                                   Wikidata usage volume, <b>(6)</b> the Wikidata usage breakdown across the types of client projects and Wikidata semantic categories.</font></p>
+                                                             across the Wikimedia sister projects. The WDCM Semantics Dashboard is probably the central and the analytically most complicated of all WDCM Dashboards. 
+                                                             Here we provide only the necessary basics of distributional semantics needed in order to understand the results of semantic topic modeling presented on this 
+                                                             WDCM dashboard. A user who needs to dive deep into the similarity structures between the Wikimedia sister projects in respect to their Wikidata usage patterns 
+                                                             will most probably have to do some additional reading first. However, the Dashboard simplifies the presentation of the results as much as possible to make them 
+                                                             accessible to any Wikidata user or Wikipedia editor who is not necessarily involved in Data or Cognitive Science. Reading through the <b>WDCM Semantic Topic Models</b> 
+                                                             section in this page is <i>highly advised</i> to anyone who has never met semantic topic models or distributional semantics before. Before that, our next stop: Definitions.
+                                                   </font></p>
                                                    <hr>
                                                    <h4>Definitions</h4>
                                                    <br>
                                                    <p><font size = 2><b>N.B.</b> The current <b>Wikidata item usage statistic</b> definition is <i>the count of the number of pages in a particular client project
                                                    where the respective Wikidata item is used</i>. Thus, the current definition ignores the usage aspects completely. This definition is motivated by the currently 
-                                                   present constraints in Wikidata usage tracking across the client projects. With more mature Wikidata usage tracking systems, the definition will become a subject 
+                                                   present constraints in Wikidata usage tracking across the client projects 
+                                                   (see <a href = "https://www.mediawiki.org/wiki/Wikibase/Schema/wbc_entity_usage" target = "_blank">Wikibase/Schema/wbc entity usage</a>). 
+                                                   With more mature Wikidata usage tracking systems, the definition will become a subject 
                                                    of change. The term <b>Wikidata usage volume</b> is reserved for total Wikidata usage (i.e. the sum of usage statistics) in a particular 
                                                    client project, group of client projects, or semantic categories. By a <b>Wikidata semantic category</b> we mean a selection of Wikidata items that is 
                                                    that is operationally defined by a respective SPARQL query returning a selection of items that intuitivelly match a human, natural semantic category. 
@@ -245,63 +291,59 @@ shinyUI(
                                                    mutually exclusive. The Wikidata ontology is very complex and a product of work of many people, so there is an optimization price to be paid in every attempt to 
                                                    adapt or simplify its present structure to the needs of a statistical analytical system such as WDCM. The current set of WDCM semantic categories is thus not 
                                                    normative in any sense and a subject  of change in any moment, depending upon the analytical needs of the community.</font></p>
+                                                   <p>The currently used <b>WDCM Taxonomy</b> of Wikidata items encompasses the following 14 semantic categories: <i>Geographical Object</i>, <i>Organization</i>, <i>Architectural Structure</i>, 
+                                                   <i>Human</i>, <i>Wikimedia</i>, <i>Work of Art</i>, <i>Book</i>, <i>Gene</i>, <i>Scientific Article</i>, <i>Chemical Entities</i>, <i>Astronomical Object</i>, <i>Thoroughfare</i>, <i>Event</i>, 
+                                                   and <i>Taxon</i>.</p>
                                                    <hr>
-                                                   <h4>Wikidata Usage Overview</h4>
+                                                   <h4>WDCM Semantic Topic Models</h4>
                                                    <br>
-                                                   <p><font size = 2>The similarity structure in Wikidata usage <i>across the client projects</i> is presented. Each bubble represents a client project.
-                                                   The size of the bubble reflects the volume of Wikidata usage in the respective project. Projects similar in respect to the semantics of Wikidata
-                                                   usage are grouped together.<br>
-                                                   The bubble chart is produced by performing a <a href="https://en.wikipedia.org/wiki/T-distributed_stochastic_neighbor_embedding" target="_blank">t-SNE dimensionality reduction</a> 
-                                                   of the client project pairwise Euclidean distances derived from the Projects x Categories contingency table. Given that the original higher-dimensional space 
-                                                   from which the 2D map is derived is rather constrained by the choice of a small number of semantic categories, the similarity mapping is somewhat 
-                                                   imprecise and should be taken as an attempt at an approximate big picture of the client projects similarity structure only. More precise 2D maps of 
-                                                   the similarity structures in client projects are found on the WDCM Semantics Dashboard, where each semantic category first receives an 
-                                                   <a href = "https://en.wikipedia.org/wiki/Topic_model" target = "_blank">LDA Topic Model</a>, 
-                                                   and the similarity structure between the client projects is then derived from project topical distributions.<br>
-                                                   While the <i>Explore</i> tab presents a dynamic <a href = "http://hafen.github.io/rbokeh/" target="_blank">{Rbokeh}</a> visualization alongised 
-                                                   the tools to explore it in detail, the <i>Highlights</i> tab shows a static <a href = "http://ggplot2.org/" target="_blank">{ggplot2}</a> plot with the most important client projects 
-                                                   marked (<b>NOTE.</b> Only top five projects (of each project type) in respect to Wikidata usage volume are labeled).</font></p>
+                                                   <h5>Suggested Readings</h5>
+                                                   <ul>
+                                                   <li><b>Distributional Semantics.</b> In <i>Wikipedia</i>. Retrieved October 24, 2017, from <a href = "https://en.wikipedia.org/wiki/Distributional_semantics" target = "_blank">https://en.wikipedia.org/wiki/Distributional_semantics</a></li>
+                                                   <li><b>Topic model.</b> In <i>Wikipedia</i>. Retrieved October 24, 2017, from <a href = "https://en.wikipedia.org/wiki/Topic_model" target = "_blank">https://en.wikipedia.org/wiki/Topic_model</a></li>
+                                                   <li><b>Latent Dirichlet allocation.</b> In <i>Wikipedia</i>. Retrieved October 24, 2017, from <a href = "https://en.wikipedia.org/wiki/Latent_Dirichlet_allocation" target = "_blank">https://en.wikipedia.org/wiki/Latent_Dirichlet_allocation</a></li>
+                                                   <li><b>Dimensionality reduction.</b> In <i>Wikipedia</i>. Retrieved October 24, 2017, from <a href = "https://en.wikipedia.org/wiki/Dimensionality_reduction" target = "_blank">https://en.wikipedia.org/wiki/Dimensionality_reduction</a></li>
+                                                   </ul>
+                                                   <p><font size = 2>While <a href = "https://www.wikidata.org/wiki/Wikidata:Main_Page" target = "_blank">Wikidata</a> itself is a <a href = "https://en.wikipedia.org/wiki/Ontology_(information_science)" 
+                                                   target = "_blank">semantic ontology</a> with pre-defined and evolving normative rules of description and inference, <b>Wikidata usage</b> is essentialy a social, behavioral phenomenon, 
+                                                   suitable for study by means of <a href = "https://en.wikipedia.org/wiki/Machine_learning" target = "_blank">machine learning</a> in the field of <a href = "https://en.wikipedia.org/wiki/Distributional_semantics" 
+                                                   target = "_blank">distributional semantics</a>: the analysis and modeling of statistical patterns of occurrence and co-occurence of Wikidata item and property 
+                                                   usage across the client projects (e.g. <i>enwiki</i>, <i>frwiki</i>, <i>ruwiki</i>, etc). WDCM thus employes various statistical approaches in an attempt to describe and provide insights from the observable Wikidata 
+                                                   usage statistics (e.g. <a href = "https://en.wikipedia.org/wiki/Topic_model" target = "_blank">topic modeling</a>, <a href = "https://en.wikipedia.org/wiki/Cluster_analysis" target = "_blank">clustering</a>, 
+                                                   <a href = "https://en.wikipedia.org/wiki/Dimensionality_reduction" target = "_blank">dimensionality reduction</a>, all beyond providing elementary descriptive statistics of Wikidata usage, of course).
+                                                   <br><br>
+                                                   <b><i>Wikidata Usage Patterns.</b></i> The <i>“golden line”</i> that connects the reasoning behind all WDCM functions can be non-technically described in the following way. Imagine observing the number of times a set of 
+                                                   size <b>N</b> of particular Wikidata items was used across some project (<i>enwiki</i>, for example). Example having the same data or other projects as well: for example, if 200 projects are under analysis, then we 
+                                                   have <b>200</b> counts for <b>N</b> items in a set, and the data can be desribed by a <b>N x 200</b> matrix (<i>items</i> x <i>projects</i>). Each column of counts, representing the frequency of occurence of all Wikidata 
+                                                   entities under consideration across one of the 200 projects under discussion - a vector, obviously - represents a particular <i>Wikidata usage pattern</i>. By inspecting and modeling statistically the usage pattern matrix - 
+                                                   a matrix that encompasses all such usage patterns across the projects, or the derived covariance/correlation matrix - many insigths into the similarities between Wikimedia projects items projects (or, more precisely, 
+                                                   the similarities between their usage patterns) can be found.
+                                                   <br>In essence, the technology and mathematics behind WDCM relies on the same set of practical tools and ideas that support the development of <a href = "https://en.wikipedia.org/wiki/Semantic_search" target = "_blank">semantic search engines</a> 
+                                                   and <a href = "https://en.wikipedia.org/wiki/Recommender_system" target = "_blank">recommendation systems</a>, only applied to a specific dataset that encompasses the usage patterns for tens of millions of Wikidata entities across its client projects.</font></p>
                                                    <hr>
-                                                   <h4>Wikidata Usage Tendency</h4>
+                                                   <h4>Dashboard: Semantic Models</h4>
                                                    <br>
-                                                   <p><font size = 2>The similarity structure in Wikidata usage <i>across the semantic categories</i> is presented. Each bubble represents a Wikidata semantic
-                                                   category. The size of the bubble reflects the volume of Wikidata usage from the respective category. If two categories are found in proximity,
-                                                   that means that the projects that tend to use the one also tend to use the another, and vice versa. Similarly to the Usage Overview, the 2D mapping is obtained by performing 
-                                                   a <a href="https://en.wikipedia.org/wiki/T-distributed_stochastic_neighbor_embedding" target="_blank">t-SNE dimensionality reduction</a> 
-                                                   of the categories pairwise Euclidean distances derived from the Projects x Categories contingency table. </font></p>
+                                                   <p><font size = 2>Each of the 14 currently used semantic categories in the WDCM Taxonomy of Wikidata items receives a separate topic model. Each topic model encompasses two or more 
+                                                   topics, or semantic themes. Here you can select a semantic category (e.g. "Geographical Object", "Human") and a particular topic from its model. The page will produce three outputs: 
+                                                   (1) the <i>Top 50 items in this topic</i> chart, which presents the 50 most important items in the select topic of the selected category\'s topic model, (2) the <i>Topic similarity network</i>, 
+                                                   which presents the similarity structure among the 50 most important items in the selected topic, and (c) the <i>Top 50 projects in this topic</i> chart, where 50 Wikimedia projects in which the 
+                                                   selected topic plays a prominent role in the selected semantic category.
+                                                   </font></p>
                                                    <hr>
-                                                   <h4>Wikidata Usage Distribution</h4>
+                                                   <h4>Dashboard: Project Semantics</h4>
                                                    <br>
-                                                   <p><font size = 2>The plots are helpful to build an understanding of the relative range of Wikidata usage across the client projects.
-                                                   In the <i>Project Usage Rank-Frequency</i> plot, each point represents a client project; Wikidata usage is represented on the vertical and
-                                                   the project usage rank on the horizontal axis, while only top project (per project type) are labeled. The highly-skewed, asymmetrical
-                                                   distribution reveals that a small fraction of client projects only accounts for a huge proportion of Wikidata usage.<br> In the
-                                                   <i>Project Usage log(Rank)-log(Frequency)</i> plot, the logarithms of both variables are represented. 
-                                                   A <a href = "https://en.wikipedia.org/wiki/Power_law" target="_blank">power-law</a> relationship holds true if this
-                                                   plot is linear. The plot includes the best linear fit, however, no attempts to estimate the underlying probability distribution were made. </font></p>
+                                                   <p><font size = 2>Make a selection of Wikimedia projects here and hit <i>Apply Selection</i>. The Dashboard will produce a series of charts, one per each Wikidata semantic category that is 
+                                                   present in your selection of projects, and compute the relative importance (%) of each topic in the given selection and for each semantic category. Do not forget that category specific 
+                                                   semantic models do not necessarily encompass the same number of topics (in fact, they rarely do); also, <i>Topic n</i> in one category is obviously not the same thing as  <i>Topic n</i> in 
+                                                   some other category.
+                                                   </font></p>
                                                    <hr>
-                                                   <h4>Client Project Types</h4>
+                                                   <h4>Dashboard: Similarity Maps</h4>
                                                    <br>
-                                                   <p><font size = 2>Project types are provided in the rows of this chart, while the semantic categories are given on the horizontal axis.
-                                                   The height of the respective bar indicates Wikidata usage volume from the respective semantic category in a particular client project.</font></p>
-                                                   <hr>
-                                                   <h4>Client Projects Usage Volume</h4>
-                                                   <br>
-                                                   <p><font size = 2>Use the slider to select the percentile rank range of the Wikidata usage volume distribution across the client project to show. The
-                                                   chart will automatically adjust to present the selected projects in increasing order of Wikidata usage, and presenting at most 30 top projects
-                                                   from the selection. <b>NOTE.</b> The <a href="https://en.wikipedia.org/wiki/Percentile_rank" target="_blank">percentile rank</a> 
-                                                   of a score is the percentage of scores in its frequency distribution that are equal to or lower than it. 
-                                                   For example, a client project that has a Wikidata usage volume greater than or equal to 75% of all client projects under
-                                                   consideration is said to be at the 75th percentile, where 75 is the percentile rank.<br> In effect, you can browse the whole 
-                                                   distribution of Wikidata usage across the client projects by selecting the lower and uppers limit in terms of usage percentile rank.</font></p>
-                                                   <hr>
-                                                   <h4>Wikidata Usage Browser</h4>
-                                                   <br>
-                                                   <p><font size = 2>A breakdown of Wikidata usage statistics across client projects and semantic categories. To the left, 
-                                                   a table that presents a Client Project vs. Semantic Category cross-tabulation. The Usage column in this table is the Wikidata 
-                                                   usage statistic for a particular Semantic Category x Client Project combination (e.g. The Wikidata usage in the category "Human" in 
-                                                   the dewiki project). To the right, the total Wikidata usage per client project is presented (i.e. the sum of Wikidata usage across 
-                                                   all semantic categories for a particular client project; e.g. the total Wikidata usage volume of enwiki).</font></p>
+                                                   <p><font size = 2>Upon a selection of semantic category, the Dashboard will present a 2D map which represents the similarities between the Wikimedia projects computed from the selected category\'s 
+                                                   semantic model only. Here you can learn how similar or dissimilar are the sister projects in respect to their usage Wikidata items from a single semantic category.
+                                                   </font></p>
+                                                   
                                                    ')
                                               )
                                               )
@@ -315,17 +357,19 @@ shinyUI(
                                                    <h4>Your orientation in the WDCM Dashboards System<h4>
                                                    <hr>
                                                    <ul>
-                                                   <li><b>WDCM Overview</b> (current dashboard).<br>
+                                                   <li><b><a href = "http://wdcm.wmflabs.org/">WDCM Portal</a></b>.<br>
+                                                   <font size = "2">The entry point to WDCM Dashboards.</font></li><br>
+                                                   <li><b><a href = "http://wdcm.wmflabs.org/WDCM_OverviewDashboard/">WDCM Overview</a></b><br>
                                                    <font size = "2">The big picture. Fundamental insights in how Wikidata is used across the client projects.</font></li><br>
-                                                   <li><b>WDCM Semantics.</b><br>
-                                                   <font size = "2">Detailed insights into the WDCM ontology (a selection of semantic categories from Wikidata), its distributional
-                                                   semantics, and the way it is used across the client projects. If you are looking for Topic Models, yes that&#8217;s where
-                                                   they live in WDCM.</font></li><br>
-                                                   <li><b>WDCM Usage.</b><br>
+                                                   <li><b><a href = "http://wdcm.wmflabs.org/WDCM_SemanticsDashboard/">WDCM Semantics</a> (current dashboard)</b><br>
+                                                   <font size = "2">Detailed insights into the WDCM Taxonomy (a selection of semantic categories from Wikidata), its distributional
+                                                   semantics, and the way it is used across the client projects. If you are looking for Topic Models - that&#8217;s where
+                                                   they live.</font></li><br>
+                                                   <li><b><a href = "http://wdcm.wmflabs.org/WDCM_UsageDashboard/">WDCM Usage</a></b><br>
                                                    <font size = "2">Fine-grained information on Wikidata usage across client projects and project types. Cross-tabulations and similar..</font></li><br>
                                                    <li><b>WDCM Items</b><br>
-                                                   <font size = "2">Fine-grained information on particular Wikidata item usage across the client projects..</font></li><br>
-                                                   <li><b>WDCM System Technical Documentation.</b><br>
+                                                   <font size = "2">Fine-grained information on particular Wikidata item usage across the client projects.<b> (Under development)</b></font></li><br>
+                                                   <li><b>WDCM System Technical Documentation</b><br>
                                                    <font size = "2">A document that will come to existence eventually. There are rumours of an existing draft.</font></li>
                                                    </ul>'
                                                              )
@@ -344,7 +388,7 @@ shinyUI(
               column(width = 12,
                      hr(),
                      HTML('<b>Wikidata Concepts Monitor :: WMDE 2017</b><br>Diffusion: <a href="https://phabricator.wikimedia.org/diffusion/AWCM/" target = "_blank">WDCM</a><br>'),
-                     HTML('Contact: Goran S. Milovanovic, Data Analyst, WMDE<br>e-mail: goran.milovanovic_ext@wikimedia.de
+                     HTML('Contact: Goran S. Milovanovic, Data Scientist, WMDE<br>e-mail: goran.milovanovic_ext@wikimedia.de
                           <br>IRC: goransm'),
                      br(),
                      br()

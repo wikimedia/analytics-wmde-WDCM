@@ -4,7 +4,7 @@
 ### ---------------------------------------------------------------------------
 
 ### --- Setup
-rm(list=ls())
+rm(list = ls())
 ### --- general
 library(shiny)
 library(shinydashboard)
@@ -238,7 +238,9 @@ shinyUI(
                                                    <br>
                                                    <p><font size = 2><b>N.B.</b> The current <b>Wikidata item usage statistic</b> definition is <i>the count of the number of pages in a particular client project
                                                    where the respective Wikidata item is used</i>. Thus, the current definition ignores the usage aspects completely. This definition is motivated by the currently 
-                                                   present constraints in Wikidata usage tracking across the client projects. With more mature Wikidata usage tracking systems, the definition will become a subject 
+                                                   present constraints in Wikidata usage tracking across the client projects 
+                                                   (see <a href = "https://www.mediawiki.org/wiki/Wikibase/Schema/wbc_entity_usage" target = "_blank">Wikibase/Schema/wbc entity usage</a>). 
+                                                   With more mature Wikidata usage tracking systems, the definition will become a subject 
                                                    of change. The term <b>Wikidata usage volume</b> is reserved for total Wikidata usage (i.e. the sum of usage statistics) in a particular 
                                                    client project, group of client projects, or semantic categories. By a <b>Wikidata semantic category</b> we mean a selection of Wikidata items that is 
                                                    that is operationally defined by a respective SPARQL query returning a selection of items that intuitivelly match a human, natural semantic category. 
@@ -247,7 +249,10 @@ shinyUI(
                                                    categories in WDCM is not necessarily exhaustive (i.e. they do not necessarily cover all Wikidata items), neither the categories are necessarily 
                                                    mutually exclusive. The Wikidata ontology is very complex and a product of work of many people, so there is an optimization price to be paid in every attempt to 
                                                    adapt or simplify its present structure to the needs of a statistical analytical system such as WDCM. The current set of WDCM semantic categories is thus not 
-                                                   normative in any sense and a subject  of change in any moment, depending upon the analytical needs of the community.</font></p>
+                                                   normative in any sense and can become a subject of change in any moment, depending upon the analytical needs of the community.</font></p>
+                                                   <p><font size = 2>The currently used <b>WDCM Taxonomy</b> of Wikidata items encompasses the following 14 semantic categories: <i>Geographical Object</i>, <i>Organization</i>, <i>Architectural Structure</i>, 
+                                                   <i>Human</i>, <i>Wikimedia</i>, <i>Work of Art</i>, <i>Book</i>, <i>Gene</i>, <i>Scientific Article</i>, <i>Chemical Entities</i>, <i>Astronomical Object</i>, <i>Thoroughfare</i>, <i>Event</i>, 
+                                                   and <i>Taxon</i>.</font></p>
                                                    <hr>
                                                    <h4>Wikidata Usage Overview</h4>
                                                    <br>
@@ -258,10 +263,10 @@ shinyUI(
                                                    of the client project pairwise Euclidean distances derived from the Projects x Categories contingency table. Given that the original higher-dimensional space 
                                                    from which the 2D map is derived is rather constrained by the choice of a small number of semantic categories, the similarity mapping is somewhat 
                                                    imprecise and should be taken as an attempt at an approximate big picture of the client projects similarity structure only. More precise 2D maps of 
-                                                   the similarity structures in client projects are found on the WDCM Semantics Dashboard, where each semantic category first receives an 
+                                                   the similarity structures in client projects are found on the <a href = "http://wdcm.wmflabs.org/WDCM_SemanticsDashboard/" target = "_blank">WDCM Semantics Dashboard</a>, where each semantic category first receives an 
                                                    <a href = "https://en.wikipedia.org/wiki/Topic_model" target = "_blank">LDA Topic Model</a>, 
                                                    and the similarity structure between the client projects is then derived from project topical distributions.<br>
-                                                   While the <i>Explore</i> tab presents a dynamic <a href = "http://hafen.github.io/rbokeh/" target="_blank">{Rbokeh}</a> visualization alongised 
+                                                   While the <i>Explore</i> tab presents a dynamic <a href = "http://hafen.github.io/rbokeh/" target="_blank">{Rbokeh}</a> visualization alongside 
                                                    the tools to explore it in detail, the <i>Highlights</i> tab shows a static <a href = "http://ggplot2.org/" target="_blank">{ggplot2}</a> plot with the most important client projects 
                                                    marked (<b>NOTE.</b> Only top five projects (of each project type) in respect to Wikidata usage volume are labeled).</font></p>
                                                    <hr>
@@ -271,7 +276,7 @@ shinyUI(
                                                    category. The size of the bubble reflects the volume of Wikidata usage from the respective category. If two categories are found in proximity,
                                                    that means that the projects that tend to use the one also tend to use the another, and vice versa. Similarly to the Usage Overview, the 2D mapping is obtained by performing 
                                                    a <a href="https://en.wikipedia.org/wiki/T-distributed_stochastic_neighbor_embedding" target="_blank">t-SNE dimensionality reduction</a> 
-                                                   of the categories pairwise Euclidean distances derived from the Projects x Categories contingency table. </font></p>
+                                                   of the pairwise category Euclidean distances derived from the Projects x Categories contingency table. </font></p>
                                                    <hr>
                                                    <h4>Wikidata Usage Distribution</h4>
                                                    <br>
@@ -315,23 +320,25 @@ shinyUI(
                                      fluidRow(
                                        column(width = 8,
                                               HTML('<h2>WDCM Navigate</h2>
-                                                    <h4>Your orientation in the WDCM Dashboards System<h4>
-                                                    <hr>
-                                                    <ul>
-                                                      <li><b>WDCM Overview</b> (current dashboard).<br>
-                                                      <font size = "2">The big picture. Fundamental insights in how Wikidata is used across the client projects.</font></li><br>
-                                                      <li><b>WDCM Semantics.</b><br>
-                                                      <font size = "2">Detailed insights into the WDCM ontology (a selection of semantic categories from Wikidata), its distributional
-                                                      semantics, and the way it is used across the client projects. If you are looking for Topic Models, yes that&#8217;s where
-                                                      they live in WDCM.</font></li><br>
-                                                      <li><b>WDCM Usage.</b><br>
-                                                      <font size = "2">Fine-grained information on Wikidata usage across client projects and project types. Cross-tabulations and similar..</font></li><br>
-                                                      <li><b>WDCM Items</b><br>
-                                                      <font size = "2">Fine-grained information on particular Wikidata item usage across the client projects..</font></li><br>
-                                                      <li><b>WDCM System Technical Documentation.</b><br>
-                                                      <font size = "2">A document that will come to existence eventually. There are rumours of an existing draft.</font></li>
-                                                    </ul>'
-                                                   )
+                                                   <h4>Your orientation in the WDCM Dashboards System<h4>
+                                                   <hr>
+                                                   <ul>
+                                                   <li><b><a href = "http://wdcm.wmflabs.org/">WDCM Portal</a></b>.<br>
+                                                   <font size = "2">The entry point to WDCM Dashboards.</font></li><br>
+                                                   <li><b><a href = "http://wdcm.wmflabs.org/WDCM_OverviewDashboard/">WDCM Overview</a> (current dashboard)</b><br>
+                                                   <font size = "2">The big picture. Fundamental insights in how Wikidata is used across the client projects.</font></li><br>
+                                                   <li><b><a href = "http://wdcm.wmflabs.org/WDCM_SemanticsDashboard/">WDCM Semantics</a></b><br>
+                                                   <font size = "2">Detailed insights into the WDCM Taxonomy (a selection of semantic categories from Wikidata), its distributional
+                                                   semantics, and the way it is used across the client projects. If you are looking for Topic Models - that&#8217;s where
+                                                   they live.</font></li><br>
+                                                   <li><b><a href = "http://wdcm.wmflabs.org/WDCM_UsageDashboard/">WDCM Usage</a></b><br>
+                                                   <font size = "2">Fine-grained information on Wikidata usage across client projects and project types. Cross-tabulations and similar..</font></li><br>
+                                                   <li><b>WDCM Items</b><br>
+                                                   <font size = "2">Fine-grained information on particular Wikidata item usage across the client projects.<b> (Under development)</b></font></li><br>
+                                                   <li><b>WDCM System Technical Documentation</b><br>
+                                                   <font size = "2">A document that will come to existence eventually. There are rumours of an existing draft.</font></li>
+                                                   </ul>'
+                                              )
                                        )
                                      )
                                      ) # - tabPanel Structure END
@@ -346,7 +353,7 @@ shinyUI(
               column(width = 12,
                      hr(),
                      HTML('<b>Wikidata Concepts Monitor :: WMDE 2017</b><br>Diffusion: <a href="https://phabricator.wikimedia.org/diffusion/AWCM/" target = "_blank">WDCM</a><br>'),
-                     HTML('Contact: Goran S. Milovanovic, Data Analyst, WMDE<br>e-mail: goran.milovanovic_ext@wikimedia.de
+                     HTML('Contact: Goran S. Milovanovic, Data Scientist, WMDE<br>e-mail: goran.milovanovic_ext@wikimedia.de
                           <br>IRC: goransm'),
                      br(),
                      br()

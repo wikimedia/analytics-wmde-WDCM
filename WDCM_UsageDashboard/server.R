@@ -547,7 +547,7 @@ shinyServer(function(input, output, session) {
   ### --- SELECT: update select 'selectProject'
   updateSelectizeInput(session,
                        'selectProject',
-                       choices = c(projects, paste("_", projectTypes, sep="")),
+                       choices = c(projects, paste("_", projectTypes, sep = "")),
                        selected = c("_Wikipedia", "_Wikinews", "_Wiktionary"),
                        server = TRUE)
   

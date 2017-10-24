@@ -71,7 +71,7 @@ shinyUI(
                                                               fluidRow(
                                                                 column(width = 6,
                                                                        br(),
-                                                                       HTML('<font size=2><b>Note:</b> This page provides an oportunity to study the WDCM semantic models. The WDCM organizes its knowledge of Wikidata usage 
+                                                                       HTML('<font size=2>This page provides an oportunity to study the WDCM semantic models. The WDCM organizes its knowledge of Wikidata usage 
                                                                             into <b>semantic categories</b> and currently uses 14 of them. Each semantic category encompasses a set of Wikidata items that match a particular intuitive, 
                                                                             natural concept (e.g. "Human", "Geographical Object", "Event", etc).<br>
                                                                             The WDCM develops a <b>semantic topic model</b> (see: <a href = "https://en.wikipedia.org/wiki/Topic_model" target = "_blank">Topic Model</a>) for each 
@@ -79,13 +79,71 @@ shinyUI(
                                                                             Wikidata items from the respective semantic category in that topic. Here you can browse the semantic categories and inspect 
                                                                             the structure of topics that are encompassed by the respective semantic model. You can also learn about the most important projects in a given category 
                                                                             for a given topic from its semantic model.<br>
-                                                                            The Dashboard will initialize a random choice of <i>Category</i> and then a <i>Topic</i> from its semantic model. Use the drop-down menus to select 
-                                                                            a category and a topic from its semantic model.</font>')
+                                                                            The Dashboard will initialize a random choice of <i>Category</i> and pick the first <i>Topic</i> from its semantic model. Use the drop-down menus to select 
+                                                                            a category and a topic from its semantic model. Three outputs will be generated on this page: the Top 50 items chart, the topic similarity network, and the top 50 
+                                                                            projects in this topic chart (scroll down).</font>')
                                                                        )
                                                                        ),
-                                                              # - fluidRow: ValueBoxes
+                                                              # - fluidRow: Selections
                                                               fluidRow(
-                                                                
+                                                                br(),
+                                                                column(width = 3,
+                                                                       selectizeInput("selectCategory",
+                                                                                      "Select Item Category:",
+                                                                                      multiple = F,
+                                                                                      choices = NULL,
+                                                                                      selected = NULL)
+                                                                       ),
+                                                                column(width = 3,
+                                                                       uiOutput("selectCatTopic")
+                                                                       )
+                                                                ),
+                                                              fluidRow(
+                                                                column(width = 12, 
+                                                                       hr(),
+                                                                       h4('Top 50 items in this topic'),
+                                                                       HTML('<font size="2">The chart represents the top 50 most important items in this topic. The importance of each item is given by its 
+                                                                            probability of being generated by this particular semantic topic (horizontal axis). The items are ranked; the rank numbers next to the labels 
+                                                                            on the vertical axis correspond to the rank numbers in parentheses next to data labels that show the item Wikidata IDs.
+                                                                            <i>There\'s a game that you can play here:</i> ask yourself what makes this 50 items go together, what makes them similar, what unifying principle 
+                                                                            holds them together in the same semantic topic? Do not forget: it is not only about what you know about the World, but also about how our communities use 
+                                                                            Wikidata on their respective projects.</font>'),
+                                                                       br(), br(),
+                                                                       withSpinner(plotOutput('topItemsTopic',
+                                                                                              width = "100%",
+                                                                                              height = "850px"))
+                                                                       )
+                                                              ),
+                                                              fluidRow(
+                                                                column(width = 12, 
+                                                                       hr(),
+                                                                       h4('Topic similarity network'),
+                                                                       HTML('<font size="2">Each bubble represents one among the top 50 most important items in this semantic topic. Each item points towards the 
+                                                                            the item to which it is most similar. Similarity between items is derived not only from item importances (i.e. probabilities) in this topic, but 
+                                                                            from all topics that are encompasses by this category\'s semantic model. In interpreting the similarities, do not forget that game is not only 
+                                                                            about what you know about the World, but also about how different communities use Wikidata. The more similarly the items are used across the 
+                                                                            sister projects, the more likely they will group together in this network. You can drag the network and the nodes around and zoom in and out by 
+                                                                            your mouse wheel.</font>'),
+                                                                       br(), br(),
+                                                                       withSpinner(visNetwork::visNetworkOutput('networkItemsTopic', height = 850))
+                                                                )
+                                                              ),
+                                                              fluidRow(
+                                                                column(width = 12, 
+                                                                       hr(),
+                                                                       h4('Top 50 projects in this topic'),
+                                                                       HTML('<font size="2">To put it in a nutshell: here you can see what projects use the selected topic from the respective semantic category the most. 
+                                                                            The chart represents the top 50 projects in respect to the prominence of the selected topic. In the WDCM topic models, 
+                                                                            the usage pattern of any particular semantic category of Wikidata items, in a particular project, can be viewed as a mixture of semantic topics 
+                                                                            from the respective category\'s semantic model. Thus, each project\'s usage pattern in a particular semantic category can be expressed 
+                                                                            as a set of proportions up to which each topic contributes to it. The horizontal axis represents the proportion (e.g. the probability) of the 
+                                                                            selected topic\'s presence in a particular project. Projects are found on the vertical axis, with the rank numbers corresponding to those near 
+                                                                            the data points in the chart.</font>'),
+                                                                       br(), br(),
+                                                                       withSpinner(plotOutput('topProjectsTopic',
+                                                                                              width = "100%",
+                                                                                              height = "850px"))
+                                                                )
                                                               )
                                                               ), # - tabPanel Semantic Models END
                                                      
@@ -96,28 +154,57 @@ shinyUI(
                                                                        fluidRow(
                                                                          column(width = 6,
                                                                                 br(), 
-                                                                                HTML('<font size = 2>Here you can make <b>selections</b> of client projects and semantic categories to learn about Wikidata 
-                                                                                usage across them.<br> <b>Note:</b> You can search and add projects into the <i>Search projects</i> field by 
+                                                                                HTML('<font size = 2>Here you can make a selection of projects and learn about the importance of all available semantic topics from 
+                                                                                each semantic category in the project(s) of your choice. <b>Note:</b> You can search and add projects into the <i>Search projects</i> field by 
                                                                                 using (a) <b>project names</b> (e.g. <i>enwiki</i>, <i>dewiki</i>, <i>sawikiquote</i>, and similar or (b) by using 
                                                                                 <b>project types</b> that start with <b>"_"</b> (underscore, e.g. <i>_Wikipedia</i>, <i>_Wikisource</i>, <i>_Commons</i>, and 
                                                                                 similar; try typing anything into the Select projects field that starts with an underscore). Please note that by selecting 
                                                                                 a project type (again: <i>_Wikipedia</i>, <i>_Wikiquote</i>, and similar) you are selecting <b>all</b> client 
                                                                                 projects of the respective type, and that\'s potentially a lot of data. The Dashboard will pick unique 
-                                                                                projects from whatever you have inserted into the Search projects field. The selection of projects will be intesected 
-                                                                                with the selection of semantic categories from the Select categories field, and the obtained results will refer only 
-                                                                                to the Wikidata items from the current selection of client projects <i>and</i> semantic categories. 
-                                                                                In other words: <i>disjunction</i> operates inside the two search fields, while <i>conjunction</i> operates 
-                                                                                across the two search fields.<br> <b>Note:</b> The Dashboard will initialize a choice of three project types 
-                                                                                (<i>Wikipedia</i>, <i>Wikinews</i>, and <i>Wiktionary</i>) and a random choice of six semantic categories. All charts will present at 
-                                                                                most 25 top projects in respect to the Wikidata usage and relative to the current selection; however, <b>complete 
-                                                                                selection data sets</b> are available for download (<i>.csv</i>) beneath each chart.</font>'),
+                                                                                projects from whatever you have inserted into the Search projects field. <br> <b>Note:</b> The Dashboard will initialize with a choice of 
+                                                                                all <i>Wikipedia</i> projects. Then you can make a selection of projects of your own and hit <i>Apply Selection</i> to obtain the result.</font>'),
                                                                                 br(), br()
                                                                                 )
                                                                          )
                                                                        )
                                                               ),
+                                                              # - fluidRow: Selections
                                                               fluidRow(
-                                                                
+                                                                br(),
+                                                                column(width = 6,
+                                                                       selectizeInput("selectProject",
+                                                                                      "Select Projects:",
+                                                                                      multiple = T,
+                                                                                      choices = NULL,
+                                                                                      selected = NULL, 
+                                                                                      width = 800)
+                                                                )
+                                                              ),
+                                                              fluidRow(
+                                                                column(width = 2,
+                                                                       actionButton('applySelection',
+                                                                                    label = "Apply Selection",
+                                                                                    width = '70%',
+                                                                                    icon = icon("database", 
+                                                                                                class = NULL, 
+                                                                                                lib = "font-awesome")
+                                                                       )
+                                                                )
+                                                              ),
+                                                              fluidRow(
+                                                                column(width = 12, 
+                                                                       hr(),
+                                                                       h4('Semantic Topics in Wikimedia Projects'),
+                                                                       HTML('<font size="2">The vertical axes represent the % of topic engagement in this particular selection of Wikimedia projects. <br>
+                                                                            <b>Note:</b> Please be remindided that semantic topics are <i>category-specific</i>: each category has its own semantic model, and each 
+                                                                            semantic model encompasses a number of topics. To clarify: Topic 1 is not the same thing in two different categories. You can learn about 
+                                                                            the content of any semantic topic in any of the semantic categories on the <i>Semantic Models</i> tab - and in fact that is what one should 
+                                                                            do <i>before</i> any attempt to interpret the data that are provided here.</font>'),
+                                                                       br(), br(),
+                                                                       withSpinner(plotOutput('projectTopicImportance',
+                                                                                              width = "100%",
+                                                                                              height = "1000px"))
+                                                                )
                                                               )
                                                               ) # - tabPanel Projects END
                                                      

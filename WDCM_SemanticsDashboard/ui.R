@@ -313,7 +313,7 @@ shinyUI(
                                                    <a href = "https://en.wikipedia.org/wiki/Dimensionality_reduction" target = "_blank">dimensionality reduction</a>, all beyond providing elementary descriptive statistics of Wikidata usage, of course).
                                                    <br><br>
                                                    <b><i>Wikidata Usage Patterns.</b></i> The <i>“golden line”</i> that connects the reasoning behind all WDCM functions can be non-technically described in the following way. Imagine observing the number of times a set of 
-                                                   size <b>N</b> of particular Wikidata items was used across some project (<i>enwiki</i>, for example). Example having the same data or other projects as well: for example, if 200 projects are under analysis, then we 
+                                                   size <b>N</b> of particular Wikidata items was used across some project (<i>enwiki</i>, for example). Imagine having the same data or other projects as well: for example, if 200 projects are under analysis, then we 
                                                    have <b>200</b> counts for <b>N</b> items in a set, and the data can be desribed by a <b>N x 200</b> matrix (<i>items</i> x <i>projects</i>). Each column of counts, representing the frequency of occurence of all Wikidata 
                                                    entities under consideration across one of the 200 projects under discussion - a vector, obviously - represents a particular <i>Wikidata usage pattern</i>. By inspecting and modeling statistically the usage pattern matrix - 
                                                    a matrix that encompasses all such usage patterns across the projects, or the derived covariance/correlation matrix - many insigths into the similarities between Wikimedia projects items projects (or, more precisely, 
@@ -366,11 +366,11 @@ shinyUI(
                                                    semantics, and the way it is used across the client projects. If you are looking for Topic Models - that&#8217;s where
                                                    they live.</font></li><br>
                                                    <li><b><a href = "http://wdcm.wmflabs.org/WDCM_UsageDashboard/">WDCM Usage</a></b><br>
-                                                   <font size = "2">Fine-grained information on Wikidata usage across client projects and project types. Cross-tabulations and similar..</font></li><br>
+                                                   <font size = "2">Fine-grained information on Wikidata usage across client projects and project types. Cross-tabulations and similar...</font></li><br>
                                                    <li><b>WDCM Items</b><br>
                                                    <font size = "2">Fine-grained information on particular Wikidata item usage across the client projects.<b> (Under development)</b></font></li><br>
-                                                   <li><b>WDCM System Technical Documentation</b><br>
-                                                   <font size = "2">A document that will come to existence eventually. There are rumours of an existing draft.</font></li>
+                                                   <li><b><a href = "https://wikitech.wikimedia.org/wiki/Wikidata_Concepts_Monitor">WDCM System Technical Documentation</a></b><br>
+                                                   <font size = "2">The WDCM Wikitech Page.</font></li>
                                                    </ul>'
                                                              )
                                                  )

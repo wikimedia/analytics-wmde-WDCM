@@ -335,8 +335,8 @@ shinyUI(
                                                    <font size = "2">Fine-grained information on Wikidata usage across client projects and project types. Cross-tabulations and similar..</font></li><br>
                                                    <li><b>WDCM Items</b><br>
                                                    <font size = "2">Fine-grained information on particular Wikidata item usage across the client projects.<b> (Under development)</b></font></li><br>
-                                                   <li><b>WDCM System Technical Documentation</b><br>
-                                                   <font size = "2">A document that will come to existence eventually. There are rumours of an existing draft.</font></li>
+                                                   <li><b><a href = "https://wikitech.wikimedia.org/wiki/Wikidata_Concepts_Monitor">WDCM System Technical Documentation</a></b><br>
+                                                   <font size = "2">The WDCM Wikitech Page.</font></li>
                                                    </ul>'
                                               )
                                        )

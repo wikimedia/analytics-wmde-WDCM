@@ -1,3 +1,4 @@
+#!/usr/bin/env Rscript
 
 ### ---------------------------------------------------------------------------
 ### --- WDCM Search Module, v. Beta 0.1
@@ -42,9 +43,6 @@
 # along with WDCM. If not, see <http://www.gnu.org/licenses/>.
 ### ---------------------------------------------------------------------------
 
-### --- Setup
-rm(list = ls())
-
 ### --- Collect all client projects that maintain wbc_entitiy_usage
 # - show all databases
 mySqlArgs <- 
@@ -59,6 +57,9 @@ clients <- read.table('databases.tsv', header = T, check.names = F, stringsAsFac
 # - select client projects
 wClients <- which(grepl("wiki$|books$|voyage$|source$|quote$|wiktionary$|news$|media$", clients$Database))
 clients <- clients$Database[wClients]
+# - remove test wikis:
+wTest <- grepl("^test", clients)
+if (length(wTest) > 0) {clients <- clients[-wTest]}
 # - look-up for wbc_entity_usage tables
 projectsTracking <- character()
 for (i in 1:length(clients)) {
@@ -72,7 +73,7 @@ for (i in 1:length(clients)) {
   mySqlCommand <- paste0("mysql ", mySqlArgs, " -e ", mySqlInput, collapse = "")
   system(command = mySqlCommand, wait = TRUE)
   tables <- read.table('clienttables.tsv', header = T, check.names = F, stringsAsFactors = F, sep = "\t")
-  if("wbc_entity_usage" %in% tables[, 1]) {
+  if ("wbc_entity_usage" %in% tables[, 1]) {
     projectsTracking <- append(projectsTracking, clients[i]) 
   }
 }
@@ -86,6 +87,12 @@ wdcmSqoopReport <- data.frame(project = projectsTracking,
                               stringsAsFactors = F
                               )
 for (i in 1:length(projectsTracking)) {
+  # - drop wdcm_clients_wb_entity_usage if this is the first entry
+  if (i == 1) {
+    hiveCommand <- '"USE goransm; DROP TABLE IF EXISTS wdcm_clients_wb_entity_usage;"'
+    hiveCommand <- paste("beeline -e ", hiveCommand, sep = "")
+    system(command = hiveCommand, wait = TRUE)
+    }
   wdcmSqoopReport$project[i] <- projectsTracking[i]
   wdcmSqoopReport$startTime[i] <- as.character(Sys.time())
   # - sqoop command:

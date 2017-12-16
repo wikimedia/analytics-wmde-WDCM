@@ -1,4 +1,11 @@
+# Created by install library script
+r-library
+
+# R project stuff
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
+
+# IntelliJ idea directory
+.idea

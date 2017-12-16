@@ -43,31 +43,61 @@
 # along with WDCM. If not, see <http://www.gnu.org/licenses/>.
 ### ---------------------------------------------------------------------------
 
+### --- Directories
+# - fPath: where the scripts is run from?
+fPath <- '/home/goransm/RScripts/WDCM_R/'
+# - form paths:
+ontologyDir <- paste(fPath, 'WDCM_Ontology', sep = "")
+logDir <- paste(fPath, 'WDCM_Logs', sep = "")
+itemsDir <- paste(fPath, 'WDCM_CollectedItems', sep = "")
+# - stat1005 published-datasets, maps onto
+# - https://analytics.wikimedia.org/datasets/wdcm/
+dataDir <- '/srv/published-datasets/wdcm'
+
+# - we need only the logDir here:
+setwd(logDir)
+
+# - check for the existence of the runtime Log
+# - and delete the old log if it's found:
+lF <- list.files()
+if ('WDCM_SqoopRuntimeLog.log' %in% lF) {
+  file.remove('WDCM_SqoopRuntimeLog.log')
+}
+
+# - to runtime Log:
+print(paste("--- UPDATE RUN STARTED ON:", Sys.time(), sep = " "))
+
 ### --- Collect all client projects that maintain wbc_entitiy_usage
+
 # - show all databases
 mySqlArgs <- 
   '--defaults-file=/etc/mysql/conf.d/analytics-research-client.cnf -h analytics-store.eqiad.wmnet -A'
-mySqlInput <- '"SHOW DATABASES;" > /home/goransm/RScripts/WDCM_R/wdcmAuxDir/databases.tsv'
+mySqlInput <- '"SHOW DATABASES;" > /home/goransm/RScripts/WDCM_R/WDCM_Logs/databases.tsv'
 # - command:
 mySqlCommand <- paste0("mysql ", mySqlArgs, " -e ", mySqlInput, collapse = "")
 system(command = mySqlCommand, wait = TRUE)
 # - get databases
-setwd('/home/goransm/RScripts/WDCM_R/wdcmAuxDir')
-clients <- read.table('databases.tsv', header = T, check.names = F, stringsAsFactors = F, sep = "\t")
+clients <- read.table('databases.tsv', 
+                      header = T, 
+                      check.names = F, 
+                      stringsAsFactors = F, 
+                      sep = "\t")
 # - select client projects
 wClients <- which(grepl("wiki$|books$|voyage$|source$|quote$|wiktionary$|news$|media$", clients$Database))
 clients <- clients$Database[wClients]
 # - remove test wikis:
-wTest <- grepl("^test", clients)
+wTest <- which(grepl("^test", clients))
 if (length(wTest) > 0) {clients <- clients[-wTest]}
 # - look-up for wbc_entity_usage tables
 projectsTracking <- character()
+# - select projects that have client-side Wikidata tracking enabled
+# - i.e. test for the existence of the wbc_entity_usage table
 for (i in 1:length(clients)) {
   # - show tables from the i-th client project
   mySqlArgs <- 
     '--defaults-file=/etc/mysql/conf.d/analytics-research-client.cnf -h analytics-store.eqiad.wmnet -A'
   mySqlInput1 <- paste('"USE ', clients[i], ';', sep = "")
-  mySqlInput2 <- 'SHOW TABLES;\" > /home/goransm/RScripts/WDCM_R/wdcmAuxDir/clienttables.tsv'
+  mySqlInput2 <- 'SHOW TABLES;\" > /home/goransm/RScripts/WDCM_R/WDCM_Logs/clienttables.tsv'
   mySqlInput <- paste(mySqlInput1, mySqlInput2, sep = "")
   # - command:
   mySqlCommand <- paste0("mysql ", mySqlArgs, " -e ", mySqlInput, collapse = "")
@@ -80,25 +110,34 @@ for (i in 1:length(clients)) {
 # - store projectsTracking
 write.csv(projectsTracking, "projectsTracking.csv")
 
-### --- Sqoop all client projects that maintain wbc_entitiy_usage
+# - to runtime Log:
+print("--- SQL phase completed.")
+# - to runtime Log:
+print("--- Sqoop phase started.")
+
+### --- Sqoop all client projects that maintain the wbc_entitiy_usage
 wdcmSqoopReport <- data.frame(project = projectsTracking,
                               startTime = character(length(projectsTracking)),
                               endTime = character(length(projectsTracking)),
                               stringsAsFactors = F
                               )
 for (i in 1:length(projectsTracking)) {
+  
+  # - to runtime Log:
+  print(paste("--- Sqoop project: ", i, sep = ""))
+  
   # - drop wdcm_clients_wb_entity_usage if this is the first entry
   if (i == 1) {
     hiveCommand <- '"USE goransm; DROP TABLE IF EXISTS wdcm_clients_wb_entity_usage;"'
-    hiveCommand <- paste("beeline -e ", hiveCommand, sep = "")
+    hiveCommand <- paste("/usr/local/bin/beeline --silent -e ", hiveCommand, sep = "")
     system(command = hiveCommand, wait = TRUE)
     }
   wdcmSqoopReport$project[i] <- projectsTracking[i]
   wdcmSqoopReport$startTime[i] <- as.character(Sys.time())
   # - sqoop command:
-  sqoopCommand <- paste("sqoop import --connect jdbc:mysql://analytics-store.eqiad.wmnet/",
+  sqoopCommand <- paste("/usr/bin/sqoop import --connect jdbc:mysql://analytics-store.eqiad.wmnet/",
                         projectsTracking[i],
-                        ' --password-file /user/goransm/mysql-analytics-research-client-pw.txt --username research -m 4 ',
+                        ' --password-file /user/goransm/mysql-analytics-research-client-pw.txt --username research -m 8 ',
                         '--query "select * from wbc_entity_usage where \\$CONDITIONS" --split-by eu_row_id --as-avrodatafile --target-dir /user/goransm/wdcmsqoop/wdcm_clients_wb_entity_usage/wiki_db=',
                         projectsTracking[i],
                         ' --delete-target-dir',
@@ -126,23 +165,29 @@ for (i in 1:length(projectsTracking)) {
                         'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
                       LOCATION
                         'hdfs://analytics-hadoop/user/goransm/wdcmsqoop/wdcm_clients_wb_entity_usage';\""
-    hiveCommand <- paste("beeline -e ", hiveCommand, sep = "")
+    hiveCommand <- paste("/usr/local/bin/beeline --silent -e ", hiveCommand, sep = "")
     system(command = hiveCommand, wait = TRUE)
   }
   # - repair partitions:
-  system(command = 'beeline -e "USE goransm; SET hive.mapred.mode = nonstrict; MSCK REPAIR TABLE wdcm_clients_wb_entity_usage;"', wait = TRUE)
+  system(command = '/usr/local/bin/beeline --silent -e "USE goransm; SET hive.mapred.mode = nonstrict; MSCK REPAIR TABLE wdcm_clients_wb_entity_usage;"', wait = TRUE)
 
   # - REPORT
   wdcmSqoopReport$endTime[i] <- as.character(Sys.time())
-  print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-  print("--------------------------------------------------------------------------------")
   print(paste("FINISHED PROJECT:", i, sep = " "))
-  print("--------------------------------------------------------------------------------")
-  print("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++")
-  
+
 }
 
+# - check for the existence of the wdcmSqoopReport file
+# - and delete the old file if it's found:
+lF <- list.files()
+w <- which(grepl("^wdcmSqoopReport", lF))
+if (length(w) == 1) {
+  file.remove(lF[w])
+}
 # - save wdcmSqoopReport
-fileName <- paste("wdcmSqoopReport_", strsplit(as.character(Sys.time()), split = " ")[[1]][1], ".csv", sep = "")
+fileName <- paste("wdcmSqoopReport_", 
+                  strsplit(as.character(Sys.time()), 
+                           split = " ")[[1]][1], ".csv", 
+                  sep = "")
 write.csv(wdcmSqoopReport, fileName)
 

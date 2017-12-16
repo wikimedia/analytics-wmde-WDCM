@@ -73,9 +73,6 @@
 ### --- in: /WDCM_CollectedItems
 ### ---------------------------------------------------------------------------
 
-# - to nohup.out
-print(paste("--- UPDATE RUN STARTED ON:", Sys.time(), sep = " "))
-
 ### --- Setup
 # - contact:
 library(httr)
@@ -91,10 +88,18 @@ library(Rtsne)
 library(proxy)
 
 ### --- Directories
-ontologyDir <- '/WDCM_Ontology' # - NOTE: starting dir, not '..' 
-logDir <- '../WDCM_Logs'
-itemsDir <- '../WDCM_CollectedItems/'
-dataDir <- '../WDCM_dataOut'
+# - fPath: where the scripts is run from?
+fPath <- '/home/goransm/RScripts/WDCM_R/'
+# - form paths:
+ontologyDir <- paste(fPath, 'WDCM_Ontology', sep = "")
+logDir <- paste(fPath, 'WDCM_Logs', sep = "")
+itemsDir <- paste(fPath, 'WDCM_CollectedItems', sep = "")
+# - stat1005 published-datasets, maps onto
+# - https://analytics.wikimedia.org/datasets/wdcm/
+dataDir <- '/srv/published-datasets/wdcm'
+
+# - to runtime Log:
+print(paste("--- UPDATE RUN STARTED ON:", Sys.time(), sep = " "))
 
 ### --- Set proxy
 Sys.setenv(
@@ -102,9 +107,9 @@ Sys.setenv(
   https_proxy = "http://webproxy.eqiad.wmnet:8080")
 
 ### --- Read WDCM_Ontology
-wDir <- paste(getwd(), ontologyDir, sep = "")
-setwd(wDir)
-
+# - to runtime Log:
+print("--- Reading Ontology.")
+setwd(ontologyDir)
 wdcmOntology <- read.csv("WDCM_Ontology_Berlin_05032017.csv",
                          header = T,
                          check.names = F,
@@ -114,11 +119,9 @@ wdcmOntology <- read.csv("WDCM_Ontology_Berlin_05032017.csv",
 # - endPoint:
 endPointURL <- "https://query.wikidata.org/bigdata/namespace/wdq/sparql?format=xml&query="
 
-# - track the number of items fetched:
-totalN <- numeric()
-
 # - set itemsDir:
 setwd(itemsDir)
+
 # - clear output dir:
 lF <- list.files()
 rmF <- file.remove(lF)
@@ -131,8 +134,8 @@ startTime <- as.character(Sys.time())
 
 for (i in 1:length(wdcmOntology$CategoryItems)) {
 
-  # - to nohup.out
-  print(paste("SPARQL category:", i, sep = ""))
+  # - to runtime Log:
+  print(paste("--- SPARQL category:", i, sep = " "))
 
   searchItems <- str_trim(
     strsplit(wdcmOntology$CategoryItems[i],
@@ -153,24 +156,21 @@ for (i in 1:length(wdcmOntology$CategoryItems)) {
     )
 
     # Run Query:
-    res <- GET(paste0(endPointURL, URLencode(query)))
-
-    # If res$status_code == 200, store:
+    res <- GET(url = paste0(endPointURL, URLencode(query)))
 
     if (res$status_code == 200) {
 
       # XML:
       rc <- rawToChar(res$content)
-      rc <- htmlParse(rc)
+      # rc <- htmlParse(rc)
 
       # clear:
       rm(res); gc()
 
       # extract:
-      items <- xpathSApply(rc, "//uri", xmlValue)
-      items <- unname(sapply(items, function(x) {
-        strsplit(x, split = "/", fixed = T)[[1]][length(strsplit(x, split = "/", fixed = T)[[1]])]
-      }))
+      # - to runtime Log:
+      print(paste("Parsing now SPARQL category:", i, sep = ""))
+      items <- unlist(str_extract_all(rc, "Q[[:digit:]]+", simplify = F))
 
       # - as.data.frame:
       items <- data.frame(item = items,
@@ -198,15 +198,16 @@ for (i in 1:length(wdcmOntology$CategoryItems)) {
   # store as CSV
   write_csv(itemsOut, path = paste0(wdcmOntology$Category[i],"_ItemIDs.csv"))
 
-  # total numeber of concepts ++:
-  totalN <- append(totalN, length(itemsOut$item))
-
   # clear:
   rm(itemsOut); gc()
 
 }
 
 ### --- Fix WDCM_Ontology (Phab T174896#3762820)
+
+# - to runtime Log:
+print("--- Fix WDCM_Ontology (Phab T174896#3762820)")
+
 # - remove Geographical Object from Organization:
 organizationItems <- read.csv('Organization_ItemIDs.csv',
                               header = T,
@@ -265,12 +266,14 @@ write.csv(geoObjItems, 'Geographical Object_ItemIDs.csv')
 # - clear:
 rm(geoObjItems); rm(architectureItems); gc()
 
-# - log uncompleted queries;
+### --- log Collect_Items step:
+# - to runtime Log:
+print("--- LOG: Collect_Items step completed.")
 # - set log dir:
 setwd(logDir)
+# - log uncompleted queries
 write.csv(qErrors, "WDCM_CollectItems_SPARQL_Errors.csv")
 # - write to WDCM main reporting file:
-# - check whether WDCM_MainReport.csv exists:
 lF <- list.files()
 if ('WDCM_MainReport.csv' %in% lF) {
   mainReport <- read.csv('WDCM_MainReport.csv',
@@ -298,7 +301,7 @@ if ('WDCM_MainReport.csv' %in% lF) {
 ### --- WDCM Search Module, v. Beta 0.1
 ### --- Script: WDCM_Search_Clients.R, v. Beta 0.1
 ### --- Author: Goran S. Milovanovic, Data Analyst, WMDE
-### --- Developed under the contract between Goran Milovanovic PR Data Kolektiv 
+### --- Developed under the contract between Goran Milovanovic PR Data Kolektiv
 ### --- and WMDE.
 ### --- Contact: goran.milovanovic_ext@wikimedia.de
 ### ---------------------------------------------------------------------------
@@ -314,26 +317,23 @@ if ('WDCM_MainReport.csv' %in% lF) {
 ### --- NOTE: wdcm_clients_wb_entity_usage is produced by
 ### --- WDCM_Sqoop_Clients.R (currently run from: stat1004.eqiad.wmnet)
 ### ---------------------------------------------------------------------------
-### --- INPUT: 
+### --- INPUT:
 ### --- the WDCM_Search_Clients_HiveQL.R reads the list of item IDs
 ### --- to search for from /WDCM_CollectedItems
 ### --- This folder contains the .csv files that specify the item IDs
-### --- to search for; the files are produced by Scrpt 1: WDCM_Collect_Items.R 
+### --- to search for; the files are produced by Scrpt 1: WDCM_Collect_Items.R
 ### ---------------------------------------------------------------------------
-### --- OUTPUT: 
+### --- OUTPUT:
 ### --- wdcm_maintable Hive table on hdfs, database: goransm
 ### ---------------------------------------------------------------------------
 
-### --- Setup
-scriptDir <- '../'
-
-# - read item categories:
+### --- read item categories:
 setwd(itemsDir)
 idFiles <- list.files()
 idFiles <- idFiles[grepl(".csv$", idFiles)]
 idFilesSize <- file.size(idFiles)/1024^2
 
-# - Track all categories under processing:
+### --- Track all categories under processing:
 wdcmSearchReport <- data.frame(category = idFiles,
                                fileSize = idFilesSize,
                                startTime = character(length(idFiles)),
@@ -342,20 +342,77 @@ wdcmSearchReport <- data.frame(category = idFiles,
 )
 wdcmSearchReport <- wdcmSearchReport[order(-wdcmSearchReport$fileSize), ]
 
-# - check if goransm.wdcm_maintable exists in Hadoop; if yes, drop it:
-# - beeline drop wdcm_maintable (erase metastore data):
-system(command = 'beeline --silent -e "USE goransm; DROP TABLE IF EXISTS wdcm_maintable;"', wait = T)
-# - delete files for EXTERNAL Hive table from /user/goransm/wdcmtables (hdfs path)
-system(command = 'hdfs dfs -rm -r /user/goransm/wdcmtables', wait = T)
-# - make directory for EXTERNAL Hive table /user/goransm/wdcmtables (hdfs path)
-system(command = 'hdfs dfs -mkdir /user/goransm/wdcmtables', wait = T)
+### --- check if goransm.wdcm_maintable exists in Hadoop; if yes, drop it:
+# - NOTE: drop wdcm_maintable == erase metastore data:
+# - [query01Err]
 
-# - loop over item categories:
+# - to runtime Log:
+print("Running query [query01Err].")
+
+query01Err <- system(command = '/usr/local/bin/beeline --silent -e "USE goransm; DROP TABLE IF EXISTS wdcm_maintable;"', wait = T)
+if (query01Err != 0) {
+  # - to runtime Log:
+  print("--- (!!!) query01Err failed: waiting for 1h before next attempt...")
+  # - sleep for one hour
+  Sys.sleep(time = 60*60)
+  # - re-run query
+  query01Err <- system(command = '/usr/local/bin/beeline --silent -e "USE goransm; DROP TABLE IF EXISTS wdcm_maintable;"', wait = T)
+  # - check errors:
+  if (query01Err != 0) {
+    # - to runtime Log:
+    print("--- (!!!) query01Err failed AGAIN: quiting.")
+    quit()
+  }
+}
+
+### --- delete files for EXTERNAL Hive table from /user/goransm/wdcmtables (hdfs path)
+# - [query02Err]
+# - to runtime Log:
+print("--- Running query [query02Err].")
+query02Err <- system(command = 'hdfs dfs -rm -r /user/goransm/wdcmtables', wait = T)
+if (query02Err != 0) {
+  # - to runtime Log:
+  print("--- (!!!) query02Err failed: waiting for 1h before next attempt...")
+  # - sleep for one hour
+  Sys.sleep(time = 60*60)
+  # - re-run query
+  query02Err <- system(command = 'hdfs dfs -rm -r /user/goransm/wdcmtables', wait = T)
+  # - check errors:
+  if (query02Err != 0) {
+    # - to runtime Log:
+    print("--- (!!!) query02Err failed AGAIN: quiting.")
+    quit()
+  }
+}
+
+### --- make directory for EXTERNAL Hive table /user/goransm/wdcmtables (hdfs path)
+# - [query03Err]
+# - to runtime Log:
+print("--- Running query [query03Err].")
+query03Err <- system(command = 'hdfs dfs -mkdir /user/goransm/wdcmtables', wait = T)
+if (query03Err != 0) {
+  # - to runtime Log:
+  print("--- (!!!) query03Err failed: waiting for 1h before next attempt...")
+  # - sleep for one hour
+  Sys.sleep(time = 60*60)
+  # - re-run query
+  query03Err <- system(command = 'hdfs dfs -mkdir /user/goransm/wdcmtables', wait = T)
+  # - check errors:
+  if (query03Err != 0) {
+    # - to runtime Log:
+    print("--- (!!!) query03Err failed AGAIN: quiting.")
+    quit()
+  }
+}
+
+#### --- loop over item categories:
+# - to runtime Log:
+print("--- LOOP: Producing wdcm_maintable from wdcm_clients_wb_entity_usage now.")
 for (i in 1:length(wdcmSearchReport$category)) {
-  
+
   # - start time for this category:
   wdcmSearchReport$startTime[i] <- as.character(Sys.time())
-  
+
   ### --- read item IDs:
   wFile <- which(grepl(wdcmSearchReport$category[i], idFiles, fixed = T))
   qIDs <- read.csv(idFiles[wFile],
@@ -364,7 +421,7 @@ for (i in 1:length(wdcmSearchReport$category)) {
                    stringsAsFactors = F)
   qIDs <- qIDs$item
   qIDs <- qIDs[grepl("^Q[[:digit:]]+", qIDs)]
-  
+
   ### --- cut into batches (if necessary)
   # - cut into batches (5MB max. batch size)
   batchNum <- ceiling(wdcmSearchReport$fileSize[i]/10)
@@ -372,25 +429,18 @@ for (i in 1:length(wdcmSearchReport$category)) {
   startBatchIx <- c(1:batchNum) * batchSize - batchSize + 1
   stopBatchIx <- c(1:batchNum) * batchSize
   stopBatchIx[batchNum] <- length(qIDs)
-  
+
   for (batch in 1:batchNum) {
-    
-    # - short report:
-    print("--------------------------------------------------------")
+
+    # - to runtime Log:
     print(paste("------------- Processing category: ", i, ": ", wdcmSearchReport$category[i], sep = ""))
-    print("--------------------------------------------------------")
     print(paste("------------- Processing batch: ", batch, " out of ", batchNum, sep = ""))
-    print("--------------------------------------------------------")
-    
+
     # - create goransm.wdcm_maintable Hive table if this is the first entry:
     # - (create wdcm_maintable Hive Table on (hdfs path): /user/goransm/wdcmtables)
-    
+
     if ((i == 1) & (batch == 1)) {
-      
-      print("--------------------------------------------------------")
-      print("------------- CREATE wdcm_maintable TABLE --------------")
-      print("--------------------------------------------------------")
-      
+
       hiveCommand <- "\"USE goransm; CREATE EXTERNAL TABLE \\\`goransm.wdcm_maintable\\\`(
       \\\`eu_entity_id\\\`        string      COMMENT '',
       \\\`eu_project\\\`           string      COMMENT '',
@@ -408,18 +458,32 @@ for (i in 1:length(wdcmSearchReport$category)) {
       'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
       LOCATION
       'hdfs://analytics-hadoop/user/goransm/wdcmtables';\""
-      hiveCommand <- paste("beeline --silent -e ", hiveCommand, sep = "")
-      system(command = hiveCommand, wait = TRUE)
+      hiveCommand <- paste("/usr/local/bin/beeline --silent -e ", hiveCommand, sep = "")
+      # - [query04AErr]
+      # - to runtime Log:
+      print("--- Running query [query04AErr].")
+      query04AErr <- system(command = hiveCommand, wait = TRUE)
+      if (query04AErr != 0) {
+        # - to runtime Log:
+        print("--- (!!!) query04AErr failed: waiting for 1h before next attempt...")
+        # - sleep for one hour
+        Sys.sleep(time = 60*60)
+        # - re-run query
+        query04AErr <- system(command = hiveCommand, wait = TRUE)
+        # - check errors:
+        if (query04AErr != 0) {
+          # - to runtime Log:
+          print("--- (!!!) query04AErr failed AGAIN: quiting.")
+          quit()
+        }
+      }
     }
-    
+
     # - construct HiveQL query to search for category i items
     # - across all wiki_db:
-    
-    print("--------------------------------------------------------")
-    print("------------- RUNNING HiveQL Query ---------------------")
-    print("------------- to search for category items -------------")
-    print("--------------------------------------------------------")
-    
+
+    # - to runtime Log:
+    print("--- RUNNING HiveQL Query to search for category items.")
     hiveQLQuery_1 <- "USE goransm; SET hive.mapred.mode=unstrict;"
     hiveQLQuery_2 <- paste("INSERT INTO TABLE wdcm_maintable
                            PARTITION (category='",
@@ -434,38 +498,79 @@ for (i in 1:length(wdcmSearchReport$category)) {
                            sep = "")
     hiveQLQuery <- paste(hiveQLQuery_1, hiveQLQuery_2, sep = " ")
     # - write hiveQLQuery locally:
-    setwd(scriptDir)
+    setwd(fPath)
     write(hiveQLQuery, "hiveQLQuery.hql")
     # - execute HiveQLQuery:
-    hiveQLQueryCommand <- "beeline --silent -f /home/goransm/RScripts/WDCM_R/hiveQLQuery.hql"
-    system(command = hiveQLQueryCommand, wait = TRUE)
-    
-    print("--------------------------------------------------------")
-    print("------------- REPAIR TABLE -----------------------------")
-    print("--------------------------------------------------------")
-    
+    hiveQLQueryCommand <- paste("/usr/local/bin/beeline --silent -f ", getwd(), "/hiveQLQuery.hql", sep = "")
+    # - [query04BErr]
+    # - to runtime Log:
+    print("--- Running query [query04BErr].")
+
+    query04BErr <- system(command = hiveQLQueryCommand, wait = TRUE)
+    if (query04BErr != 0) {
+      # - to runtime Log:
+      print("--- (!!!) query04BErr failed: waiting for 1h before next attempt...")
+      # - sleep for one hour
+      Sys.sleep(time = 60*60)
+      # - re-run query
+      query04BErr <- system(command = hiveQLQueryCommand, wait = TRUE)
+      # - check errors:
+      if (query04BErr != 0) {
+        # - to runtime Log:
+        print("--- (!!!) query04BErr failed AGAIN: quiting.")
+        quit()
+      }
+    }
+
+    # - to runtime Log:
+    print("--- REPAIR TABLE.")
+
     # - repair partitions:
-    system(command =
-             'beeline --silent -e "USE goransm; SET hive.mapred.mode = nonstrict; MSCK REPAIR TABLE wdcm_maintable;"',
-           wait = TRUE)
-    
+    # - query04CErr
+    # - to runtime Log:
+    print("Running query [query04CErr].")
+    query04CErr <- system(command =
+                            '/usr/local/bin/beeline --silent -e "USE goransm; SET hive.mapred.mode = nonstrict; MSCK REPAIR TABLE wdcm_maintable;"',
+                          wait = TRUE)
+    if (query04CErr != 0) {
+      # - to runtime Log:
+      print("--- (!!!) query04CErr failed: waiting for 1h before next attempt...")
+      # - sleep for one hour
+      Sys.sleep(time = 60*60)
+      # - re-run query
+      query04CErr <- system(command =
+                              '/usr/local/bin/beeline --silent -e "USE goransm; SET hive.mapred.mode = nonstrict; MSCK REPAIR TABLE wdcm_maintable;"',
+                            wait = TRUE)
+      # - check errors:
+      if (query04CErr != 0) {
+        # - to runtime Log:
+        print("--- (!!!) query04CErr failed AGAIN: quiting.")
+        quit()
+      }
+    }
+
     # - end time for this category:
     wdcmSearchReport$endTime[i] <- as.character(Sys.time())
-    
+
     # - back to item categories:
-    setwd(paste(getwd(), gsub("..", "", itemsDir, fixed = T), sep = ""))
-    
+    setwd(itemsDir)
+
   }
-  
+
 }
 
-# - store report:
+### --- store report:
+
+# - to runtime Log:
+print("--- LOG Search Phase completed.")
+
+# - to wdcmSearchReport:
 setwd(logDir)
-write.csv(wdcmSearchReport, 
-          paste("wdcmSearchReport_", 
-                strsplit(as.character(Sys.time()), 
-                         split = " ")[[1]][1], 
-                ".csv", 
+write.csv(wdcmSearchReport,
+          paste("wdcmSearchReport_",
+                strsplit(as.character(Sys.time()),
+                         split = " ")[[1]][1],
+                ".csv",
                 sep = ""))
 
 # - write to WDCM main reporting file:
@@ -488,7 +593,7 @@ write.csv(mainReport, 'WDCM_MainReport.csv')
 ### --- WDCM Process Module, v. Beta 0.1
 ### --- Script: WDCM_Pre-Process.R, v. Beta 0.1
 ### --- Author: Goran S. Milovanovic, Data Analyst, WMDE
-### --- Developed under the contract between Goran Milovanovic PR Data Kolektiv 
+### --- Developed under the contract between Goran Milovanovic PR Data Kolektiv
 ### --- and WMDE.
 ### --- Contact: goran.milovanovic_ext@wikimedia.de
 ### ---------------------------------------------------------------------------
@@ -499,17 +604,20 @@ write.csv(mainReport, 'WDCM_MainReport.csv')
 ### --- the wikidataconcepts.wmflabs.org Cloud VPS instance
 ### --- from production (currently: stat1005.eqiad.wmnet).
 ### ---------------------------------------------------------------------------
-### --- INPUT: 
+### --- INPUT:
 ### --- wdcm_maintable Hive table on hdfs, database: goransm
 ### ---------------------------------------------------------------------------
-### --- OUTPUT: 
+### --- OUTPUT:
 ### --- Results are stored locally as .tsv files on production -
 ### --- - on stat1005.eqiad.wmnet - in:
-### --- /WDCM_dataOut
+### --- /srv/published-datasets/wdcm
 ### --- These output .tsv files migrate to Labs:
 ### --- wikidataconcepts.wmflabs.org Cloud VPS instance
 ### --- where they are then processed by the WDCM Process Module.
 ### ---------------------------------------------------------------------------
+
+# - to runtime Log:
+print("--- START: PRE-PROCESS")
 
 ### --- functions
 
@@ -531,10 +639,14 @@ projectType <- function(projectName) {
 }
 
 ### --- produce wdcm_item.tsv from wdcm_maintable (hdfs, database: goransm)
-### --- NOTE: one .tsv file per category (~14M rows, causes Java gc overflow from beeline...)
+### --- NOTE: one .tsv file per category (~14M rows, causes Java gc overflow from hive...)
 
-# - read item categories:
+# - to runtime Log:
+print("--- STEP: produce wdcm_item.tsv from wdcm_maintable")
+
+### --- read item categories:
 setwd(itemsDir)
+
 idFiles <- list.files()
 idFiles <- idFiles[grepl(".csv$", idFiles)]
 categories <- unname(sapply(idFiles, function(x) {
@@ -542,108 +654,258 @@ categories <- unname(sapply(idFiles, function(x) {
 }))
 
 for (i in 1:length(categories)) {
-  filename <- paste("wdcm_item_", 
-                    gsub(" ", "", categories[i], fixed = T), ".tsv", 
+
+  filename <- paste("wdcm_item_",
+                    gsub(" ", "", categories[i], fixed = T), ".tsv",
                     sep = "")
+
+  # - to runtime Log:
+  print(paste("--- processing: ", filename, sep = ""))
+  
   hiveQLquery <- paste(
     'USE goransm; SELECT eu_entity_id, SUM(eu_count) AS eu_count FROM wdcm_maintable WHERE category=\\"',
     categories[i],
-    '\\" GROUP BY eu_entity_id ORDER BY eu_count DESC LIMIT 10000000;',
+    '\\" GROUP BY eu_entity_id ORDER BY eu_count DESC LIMIT 100000;',
     sep = "")
 
-  system(command = paste('beeline --silent -e "',
-                         hiveQLquery,
-                         '" > /home/goransm/RScripts/WDCM_R/WDCM_dataOut/',
-                         filename,
-                         sep = ""),
-         wait = TRUE)
+  # - query05Err
+  # - to runtime Log:
+  print("--- Running query [query05Err].")
+  query05Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                       hiveQLquery,
+                                       '" > ', dataDir,
+                                       "/", filename,
+                                       sep = ""),
+                       wait = TRUE)
+  if (query05Err != 0) {
+    # - to runtime Log:
+    print("--- (!!!) query05Err failed: waiting for 1h before next attempt...")
+    # - sleep for one hour
+    Sys.sleep(time = 60*60)
+    # - re-run query
+    query05Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                         hiveQLquery,
+                                         '" > ', dataDir,
+                                         "/", filename,
+                                         sep = ""),
+                         wait = TRUE)
+    # - check errors:
+    if (query05Err != 0) {
+      # - to runtime Log:
+      print("--- (!!!) query05Err failed AGAIN: quiting.")
+      quit()
+    }
+  }
+  
 }
-
-
-### --- to dataDir:
-setwd(dataDir)
-# - clear dataDir:
-lF <- list.files()
-rmF <- file.remove(lF)
 
 ### --- ETL Phase
 
+# - to runtime Log:
+print("--- STEP: ETL PHASE")
+
+### --- to dataDir (and EVERYTHING ELSE goes to dataDir)
+setwd(dataDir)
+
+# - to runtime Log:
+print("--- STEP: produce wdcm_project_category.tsv")
+
 ### --- produce wdcm_project_category.tsv from wdcm_maintable (hdfs, database: goransm)
-hiveQLquery <- 'USE goransm; 
-                SET hive.mapred.mode=unstrict; 
-                SELECT eu_project, category, SUM(eu_count) AS eu_count 
-                FROM wdcm_maintable 
+hiveQLquery <- 'USE goransm;
+                SET hive.mapred.mode=unstrict;
+                SELECT eu_project, category, SUM(eu_count) AS eu_count
+                FROM wdcm_maintable
                 GROUP BY eu_project, category ORDER BY eu_count DESC LIMIT 10000000;'
-system(command = paste('beeline --silent -e "',
-                       hiveQLquery,
-                       '" > /home/goransm/RScripts/WDCM_R/WDCM_dataOut/wdcm_project_category.tsv',
-                       sep = ""),
-       wait = TRUE)
+# - [query06Err]
+# - to runtime Log:
+print("--- Running query [query06Err].")
+
+query06Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                     hiveQLquery,
+                                     '" > ', getwd(), '/wdcm_project_category.tsv',
+                                     sep = ""),
+                     wait = TRUE)
+if (query06Err != 0) {
+  # - to runtime Log:
+  print("--- (!!!) query06Err failed: waiting for 1h before next attempt...")
+  # - sleep for one hour
+  Sys.sleep(time = 60*60)
+  # - re-run query
+  query06Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                       hiveQLquery,
+                                       '" > ', getwd(), '/wdcm_project_category.tsv',
+                                       sep = ""),
+                       wait = TRUE)
+  # - check errors:
+  if (query06Err != 0) {
+    # - to runtime Log:
+    print("--- (!!!) query06Err failed AGAIN: quiting.")
+    quit()
+  }
+}
 # - add projecttype to wdcm_project_category.tsv
 wdcm_project_category <- as.data.frame(fread('wdcm_project_category.tsv'))
 wdcm_project_category$projectype <- projectType(wdcm_project_category$eu_project)
 write.csv(wdcm_project_category, "wdcm_project_category.csv")
 
+# - to runtime Log:
+print("--- STEP: produce wdcm_project.tsv")
+
 ### --- produce wdcm_project.tsv from wdcm_maintable (hdfs, database: goransm)
-hiveQLquery <- 'USE goransm; 
-                SET hive.mapred.mode=unstrict; 
-                SELECT eu_project, SUM(eu_count) AS eu_count 
-                FROM wdcm_maintable 
+hiveQLquery <- 'USE goransm;
+                SET hive.mapred.mode=unstrict;
+                SELECT eu_project, SUM(eu_count) AS eu_count
+                FROM wdcm_maintable
                 GROUP BY eu_project ORDER BY eu_count DESC LIMIT 10000000;'
-system(command = paste('beeline --silent -e "',
-                       hiveQLquery,
-                       '" > /home/goransm/RScripts/WDCM_R/WDCM_dataOut/wdcm_project.tsv',
-                       sep = ""),
-       wait = TRUE)
+# - [query07Err]
+# - to runtime Log:
+print("Running query [query07Err].")
+query07Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                     hiveQLquery,
+                                     '" > ', getwd(), '/wdcm_project.tsv',
+                                     sep = ""),
+                     wait = TRUE)
+if (query07Err != 0) {
+  # - to runtime Log:
+  print("query07Err failed: waiting for 1h before next attempt...")
+  # - sleep for one hour
+  Sys.sleep(time = 60*60)
+  # - re-run query
+  query07Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                       hiveQLquery,
+                                       '" > ', getwd(), '/wdcm_project.tsv',
+                                       sep = ""),
+                       wait = TRUE)
+  # - check errors:
+  if (query07Err != 0) {
+    print("query07Err failed AGAIN: quiting.")
+    quit()
+  }
+}
+
 # - add projecttype to wdcm_project.tsv
 wdcm_project <- as.data.frame(fread('wdcm_project.tsv'))
 wdcm_project$projectype <- projectType(wdcm_project$eu_project)
 write.csv(wdcm_project, "wdcm_project.csv")
 
+# - to runtime Log:
+print("STEP: wdcm_category.tsv")
+
 ### --- produce wdcm_category.tsv from wdcm_maintable (hdfs, database: goransm)
-hiveQLquery <- 'USE goransm; 
-                SET hive.mapred.mode=unstrict; 
-                SELECT category, SUM(eu_count) AS eu_count 
-                FROM wdcm_maintable 
+hiveQLquery <- 'USE goransm;
+                SET hive.mapred.mode=unstrict;
+                SELECT category, SUM(eu_count) AS eu_count
+                FROM wdcm_maintable
                 GROUP BY category ORDER BY eu_count DESC LIMIT 10000000;'
-system(command = paste('beeline --silent -e "',
-                       hiveQLquery,
-                       '" > /home/goransm/RScripts/WDCM_R/WDCM_dataOut/wdcm_category.tsv',
-                       sep = ""),
-       wait = TRUE)
+# - [query08Err]
+# - to runtime Log:
+print("Running query [query08Err].")
+query08Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                     hiveQLquery,
+                                     '" > ', getwd(), '/wdcm_category.tsv',
+                                     sep = ""),
+                     wait = TRUE)
+if (query08Err != 0) {
+  # - to runtime Log:
+  print("query08Err failed: waiting for 1h before next attempt...")
+  # - sleep for one hour
+  Sys.sleep(time = 60*60)
+  # - re-run query
+  query08Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                       hiveQLquery,
+                                       '" > ', getwd(), '/wdcm_category.tsv',
+                                       sep = ""),
+                       wait = TRUE)
+  # - check errors:
+  if (query08Err != 0) {
+    # - to runtime Log:
+    print("query08Err failed AGAIN: quiting.")
+    quit()
+  }
+}
 # - save wdcm_category.tsv as .csv
 wdcm_category <- as.data.frame(fread('wdcm_category.tsv'))
 write.csv(wdcm_category, "wdcm_category.csv")
 
+# - to runtime Log:
+print("STEP: produce wdcm_project_category_item100.tsv")
+
 ### --- produce wdcm_project_category_item100.tsv from wdcm_maintable (hdfs, database: goransm)
-hiveQLquery <- 'USE goransm; 
-                SET hive.mapred.mode=unstrict; 
+hiveQLquery <- 'USE goransm;
+                SET hive.mapred.mode=unstrict;
                 SELECT * FROM (
-                  SELECT eu_project, category, eu_entity_id, eu_count, ROW_NUMBER() OVER (PARTITION BY eu_project, category ORDER BY eu_count DESC) AS row 
-                    FROM wdcm_maintable) t 
+                  SELECT eu_project, category, eu_entity_id, eu_count, ROW_NUMBER() OVER (PARTITION BY eu_project, category ORDER BY eu_count DESC) AS row
+                    FROM wdcm_maintable) t
                 WHERE row <= 100;'
-system(command = paste('beeline --silent -e "',
-                       hiveQLquery,
-                       '" > /home/goransm/RScripts/WDCM_R/WDCM_dataOut/wdcm_project_category_item100.tsv',
-                       sep = ""),
-       wait = TRUE)
+# - [query09Err]
+# - to runtime Log:
+print("Running query [query09Err].")
+query09Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                     hiveQLquery,
+                                     '" > ', getwd(), '/wdcm_project_category_item100.tsv',
+                                     sep = ""),
+                     wait = TRUE)
+if (query09Err != 0) {
+  # - to runtime Log:
+  print("query09Err failed: waiting for 1h before next attempt...")
+  # - sleep for one hour
+  Sys.sleep(time = 60*60)
+  # - re-run query
+  query09Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                       hiveQLquery,
+                                       '" > ', getwd(), '/wdcm_project_category_item100.tsv',
+                                       sep = ""),
+                       wait = TRUE)
+  # - check errors:
+  if (query09Err != 0) {
+    # - to runtime Log:
+    print("query09Err failed AGAIN: quiting.")
+    quit()
+  }
+}
+
 # - add projecttype to wdcm_project_category_item100.tsv
 wdcm_project_category_item100 <- as.data.frame(fread('wdcm_project_category_item100.tsv'))
 wdcm_project_category_item100$projectype <- projectType(wdcm_project_category_item100$t.eu_project)
 write.csv(wdcm_project_category_item100, "wdcm_project_category_item100.csv")
 
+# - to runtime Log:
+print("STEP: produce wdcm_project_item100.tsv")
+
 ### --- produce wdcm_project_item100.tsv from wdcm_maintable (hdfs, database: goransm)
-hiveQLquery <- 'USE goransm; 
-                SET hive.mapred.mode=unstrict; 
+hiveQLquery <- 'USE goransm;
+                SET hive.mapred.mode=unstrict;
                 SELECT * FROM (
-                  SELECT eu_project, eu_entity_id, eu_count, ROW_NUMBER() OVER (PARTITION BY eu_project ORDER BY eu_count DESC) AS row 
-                FROM wdcm_maintable) t 
+                  SELECT eu_project, eu_entity_id, eu_count, ROW_NUMBER() OVER (PARTITION BY eu_project ORDER BY eu_count DESC) AS row
+                FROM wdcm_maintable) t
                 WHERE row <= 100;'
-system(command = paste('beeline --silent -e "',
-                       hiveQLquery,
-                       '" > /home/goransm/RScripts/WDCM_R/WDCM_dataOut/wdcm_project_item100.tsv',
-                       sep = ""),
-       wait = TRUE)
+# - [query10Err]
+# - to runtime Log:
+print("Running query [query10Err].")
+query10Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                     hiveQLquery,
+                                     '" > ', getwd(), '/wdcm_project_item100.tsv',
+                                     sep = ""),
+                     wait = TRUE)
+if (query10Err != 0) {
+  # - to runtime Log:
+  print("query10Err failed: waiting for 1h before next attempt...")
+  # - sleep for one hour
+  Sys.sleep(time = 60*60)
+  # - re-run query
+  query10Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                       hiveQLquery,
+                                       '" > ', getwd(), '/wdcm_project_item100.tsv',
+                                       sep = ""),
+                       wait = TRUE)
+  # - check errors:
+  if (query10Err != 0) {
+    # - to runtime Log:
+    print("query10Err failed AGAIN: quiting.")
+    quit()
+  }
+}
+
 # - add projecttype to wdcm_project_item100.tsv
 wdcm_project_item100 <- as.data.frame(fread('wdcm_project_item100.tsv'))
 wdcm_project_item100$projectype <- projectType(wdcm_project_item100$t.eu_project)
@@ -651,12 +913,15 @@ write.csv(wdcm_project_item100, "wdcm_project_item100.csv")
 
 
 ### --- Semantic Modeling Phase
-
 ### --- produce project-item matrices for semantic topic modeling
-print("Semantic Modeling Phase: TDF MATRICES")
+
+# - to runtime Log:
+print("STEP: Semantic Modeling Phase: TDF MATRICES")
 itemFiles <- list.files()
 itemFiles <- itemFiles[grepl("^wdcm_item", itemFiles)]
 for (i in 1:length(itemFiles)) {
+  # - to runtime Log:
+  print(paste("----------------------- TDF matrix formation: category ", i, ".", sep = ""))
   # - load categoryFile[i].tsv as data.frame
   categoryName <- strsplit(itemFiles[i], ".", fixed = T)[[1]][1]
   categoryName <- strsplit(categoryName, "_", fixed = T)[[1]][3]
@@ -676,20 +941,46 @@ for (i in 1:length(itemFiles)) {
                        sep = "")
   fileName <- gsub(" ", "", categoryName, fixed = T)
   fileName <- paste("tfMatrix_", fileName, ".tsv", sep = "")
-  system(command = paste('beeline --silent -e "',
-                         hiveQLquery,
-                         '" > /home/goransm/RScripts/WDCM_R/WDCM_dataOut/',
-                         fileName,
-                         sep = ""),
-         wait = TRUE)
+  # - [query11Err]
+  # - to runtime Log:
+  print("Running query [query11Err].")
+  query11Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                       hiveQLquery,
+                                       '" > ', getwd(), '/',
+                                       fileName,
+                                       sep = ""),
+                       wait = TRUE)
+  if (query11Err != 0) {
+    # - to runtime Log:
+    print("query11Err failed: waiting for 1h before next attempt...")
+    # - sleep for one hour
+    Sys.sleep(time = 60*60)
+    # - re-run query
+    query11Err <- system(command = paste('/usr/local/bin/beeline --silent -e "',
+                                         hiveQLquery,
+                                         '" > ', getwd(), '/',
+                                         fileName,
+                                         sep = ""),
+                         wait = TRUE)
+    # - check errors:
+    if (query11Err != 0) {
+      # - to runtime Log:
+      print("query11Err failed AGAIN: quiting.")
+      quit()
+    }
+  }
 }
 
 ### --- reshape project-item matrices for semantic topic modeling
-print("Semantic Modeling Phase: RESHAPING TDF MATRICES")
+
+# - to runtime Log:
+print("STEP: Semantic Modeling Phase: RESHAPING TDF MATRICES")
 itemFiles <- list.files()
 itemFiles <- itemFiles[grepl("^tfMatrix_", itemFiles)]
 itemFiles <- itemFiles[grepl(".tsv", itemFiles, fixed = T)]
 for (i in 1:length(itemFiles)) {
+  # - to runtime Log:
+  print(paste("----------------------- Reshaping TDF matrix: category ", i, ".", sep = ""))
   # - load categoryFile[i].tsv as data.frame
   categoryFile <- fread(itemFiles[i])
   categoryFile <- spread(categoryFile,
@@ -711,14 +1002,17 @@ for (i in 1:length(itemFiles)) {
 }
 
 ### --- semantic topic models for each category
-print("Semantic Modeling Phase: LDA estimation")
+
+### --- to nohup.out
+# - to runtime Log:
+print("STEP: Semantic Modeling Phase: LDA estimation")
 itemFiles <- list.files()[grepl(".csv", x = list.files(), fixed = T)]
 itemFiles <- itemFiles[grepl("^tfMatrix_", itemFiles)]
 for (i in 1:length(itemFiles)) {
-  
+
   categoryName <- strsplit(itemFiles[i], split = ".", fixed = T)[[1]][1]
   categoryName <- strsplit(categoryName, split = "_", fixed = T)[[1]][2]
-  
+
   # - topic modeling:
   itemCat <- read.csv(itemFiles[i],
                       header = T,
@@ -726,7 +1020,11 @@ for (i in 1:length(itemFiles)) {
                       row.names = 1,
                       stringsAsFactors = F)
   itemCat <- as.simple_triplet_matrix(itemCat)
-  # - run on K = seq(2,20) semantic topics
+  
+  ## -- run on K = seq(2,20) semantic topics
+  
+  # - to runtime Log:
+  print(paste("----------------------- LDA model: category ", i, ".", sep = ""))  
   topicModel <- list()
   numTopics <- seq(2, 10, by = 1)
   for (k in 1:length(numTopics)) {
@@ -745,7 +1043,7 @@ for (i in 1:length(itemFiles)) {
   # - determine model from Bayes Factor against Null:
   wModel <- which.max(sapply(topicModel, function(x) {x$BF}))
   topicModel <- topicModel[[wModel]]
-  
+
   # - collect matrices:
   wdcm_itemtopic <- as.data.frame(topicModel$theta)
   colnames(wdcm_itemtopic) <- paste("topic", seq(1, dim(wdcm_itemtopic)[2]), sep = "")
@@ -753,7 +1051,7 @@ for (i in 1:length(itemFiles)) {
                              paste(categoryName, ".csv", sep = ""),
                              sep = "_")
   write.csv(wdcm_itemtopic, itemTopicFileName)
-  
+
   wdcm_projecttopic <- as.data.frame(topicModel$omega)
   colnames(wdcm_projecttopic) <- paste("topic", seq(1, dim(wdcm_projecttopic)[2]), sep = "")
   wdcm_projecttopic$project <- rownames(wdcm_projecttopic)
@@ -762,14 +1060,15 @@ for (i in 1:length(itemFiles)) {
                                 paste(categoryName, ".csv", sep = ""),
                                 sep = "_")
   write.csv(wdcm_projecttopic, projectTopicFileName)
-  
+
   # - clear:
   rm(topicModel); rm(wdcm_projecttopic); rm(wdcm_itemtopic); gc()
-  
+
 }
 
 ### --- t-SNE 2D maps from wdcm2_projectttopic files: projects similarity structure
-print("Semantic Modeling Phase: t-SNE 2D MAPS")
+# - to runtime Log:
+print("STEP: Semantic Modeling Phase: t-SNE 2D MAPS")
 projectFiles <- list.files()
 projectFiles <- projectFiles[grepl("^wdcm2_projecttopic", projectFiles)]
 for (i in 1:length(projectFiles)) {
@@ -778,7 +1077,7 @@ for (i in 1:length(projectFiles)) {
   fileName <- strsplit(fileName, split = "_", fixed = T)[[1]][3]
   fileName <- paste("wdcm2_tsne2D_project_", fileName, ".csv", sep = "")
   # load:
-  projectTopics <- read.csv(projectFiles[i], 
+  projectTopics <- read.csv(projectFiles[i],
                             header = T,
                             check.names = F,
                             row.names = 1,
@@ -788,8 +1087,8 @@ for (i in 1:length(projectFiles)) {
   # - Distance space, metric: Hellinger
   projectDist <- as.matrix(dist(projectTopics, method = "Hellinger", by_rows = T))
   # - t-SNE 2D map
-  tsneProject <- Rtsne(projectDist, 
-                       theta = .5, 
+  tsneProject <- Rtsne(projectDist,
+                       theta = .5,
                        is_distance = T,
                        perplexity = 10)
   # - store:
@@ -803,11 +1102,14 @@ for (i in 1:length(projectFiles)) {
 }
 
 ### --- {visNetwork} graphs from wdcm2_projectttopic files: projects similarity structure
+
+# - to runtime Log:
+print("STEP: {visNetwork} graphs from wdcm2_projectttopic files")
 projectFiles <- list.files()
 projectFiles <- projectFiles[grepl("^wdcm2_projecttopic", projectFiles)]
 for (i in 1:length(projectFiles)) {
   # - load:
-  projectTopics <- read.csv(projectFiles[i], 
+  projectTopics <- read.csv(projectFiles[i],
                             header = T,
                             check.names = F,
                             row.names = 1,
@@ -870,5 +1172,12 @@ toLabsReport <- data.frame(timeStamp = as.character(Sys.time()),
                            stringsAsFactors = F)
 write.csv(toLabsReport, "toLabsReport.csv")
 
+# - to runtime Log:
 print(paste("--- UPDATE RUN COMPLETED ON:", Sys.time(), sep = " "))
 
+### --- copy reports to /srv/published-datasets/wdcm:
+
+# - WDCM_MainReport
+system(command = 'cp /home/goransm/RScripts/WDCM_R/WDCM_Logs/WDCM_MainReport.csv /srv/published-datasets/wdcm/', wait = T)
+# - toLabsReport
+system(command = 'cp /home/goransm/RScripts/WDCM_R/WDCM_Logs/toLabsReport.csv /srv/published-datasets/wdcm/', wait = T)

@@ -288,14 +288,14 @@ for (i in 1:length(categories)) {
 ### --- join coordinates, items, labels, and usage
 setwd(dataDir)
 
-# - list .tsv files
+# - list .tsv files from dataDir
 lF <- list.files()
 w <- which(grepl("^wdcm_geoitem", lF))
 lF <- lF[w]
 w <- which(grepl(".tsv", lF, fixed = T))
 lF <- lF[w]
 
-# - remove old .csv files:
+# - remove old .csv files from dataDir
 rmF <- list.files()
 w <- which(grepl("^wdcm_geoitem", rmF))
 rmF <- rmF[w]

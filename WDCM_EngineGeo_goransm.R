@@ -219,7 +219,6 @@ print("--- ETL: Wikidata usage statistics from wdcm_maintable")
 
 ### --- read item categories:
 setwd(itemsDir)
-
 idFiles <- list.files()
 idFiles <- idFiles[grepl(".csv$", idFiles)]
 categories <- unname(sapply(idFiles, function(x) {
@@ -342,7 +341,9 @@ for (i in 1:length(lF)) {
   # - write: back to dataDir
   setwd(dataDir)
   file.remove(lF[i])
-  write.csv(usage, file = gsub(".tsv", ".csv", lF[i], fixed = T))
+  write.csv(usage, file = gsub(".tsv", ".csv", 
+                               gsub("_ItemIDs", "", paste("wdcm_geoitem_", rF[i], sep = ""), fixed = T)
+                               ))
 }
 
 ### --- log ETL step:

@@ -154,7 +154,10 @@ for (i in 1:length(wdcmGeoItems$item)) {
     rm(item); rm(coordinate); rm(label); rm(rc); gc()
     # - keep unique result set:
     w <- which(duplicated(items$item))
-    items <- items[-w, ]
+    if (length(w) > 0) {items <- items[-w, ]}
+    # - clear possible NAs from coordinates
+    w <- which(is.na(items$coordinate) | (items$coordinate == ""))
+    if (length(w) > 0) {items <- items[-w, ]}
     # - fix items
     items$item <- gsub("http://www.wikidata.org/entity/", "", items$item, fixed = T)
     # - fix coordinates (lon, lat)
@@ -283,7 +286,64 @@ for (i in 1:length(categories)) {
 }
 
 ### --- join coordinates, items, labels, and usage
+setwd(dataDir)
 
+# - list .tsv files
+lF <- list.files()
+w <- which(grepl("^wdcm_geoitem", lF))
+lF <- lF[w]
+w <- which(grepl(".tsv", lF, fixed = T))
+lF <- lF[w]
+
+# - remove old .csv files:
+rmF <- list.files()
+w <- which(grepl("^wdcm_geoitem", rmF))
+rmF <- rmF[w]
+w <- which(grepl(".csv", rmF, fixed = T))
+rmF <- rmF[w]
+file.remove(rmF)
+
+for (i in 1:length(lF)) {
+  
+  # - to runtime Log:
+  print(paste("Joining dataset: ", lF[i], sep = ""))
+  
+  # - usage data
+  usage <- readLines(lF[i])
+  usage <- usage[-which(grepl("null", usage, fixed = T))]
+  usage <- usage[-which(usage == "")]
+  usageList <- lapply(usage, function(x) {
+    udata <- strsplit(x, split = "\t", fixed = T)[[1]]
+    udata <- data.frame(item = udata[1], 
+                        usage = udata[2],
+                        stringsAsFactors = F)
+  })
+  usage <- rbindlist(usageList)
+  rm(usageList)
+  # - coordinates data and labels
+  setwd(itemsDir)
+  rF <- list.files()
+  # - find coordinates data and labels file
+  catUsage <- strsplit(
+    strsplit(lF[i], split = ".", fixed = T)[[1]][1],
+    split = "_",
+    fixed = T)[[1]][3]
+  rFcheck <- sapply(rF, function(x) {
+    gsub(" ", "", strsplit(x, split = "_", fixed = T)[[1]][1], fixed = T)
+  })
+  w <- sapply(rFcheck, function(x) {grepl(catUsage, x)})
+  geo <- read.csv(rF[w], 
+                  header = T,
+                  check.names = F,
+                  stringsAsFactors = F)
+  # - join
+  usage <- left_join(usage, geo, by = 'item')
+  rm(geo)
+  # - write: back to dataDir
+  setwd(dataDir)
+  file.remove(lF[i])
+  write.csv(usage, file = gsub(".tsv", ".csv", lF[i], fixed = T))
+}
 
 ### --- log ETL step:
 # - to runtime Log:
@@ -314,13 +374,20 @@ if ('WDCM_GeoReport.csv' %in% lF) {
 ### --- Step 3: toLabsGeoReport
 ### ---------------------------------------------------------------------------
 
+### --- toLabsGeoReport
+toLabsGeoReport <- data.frame(timeStamp = as.character(Sys.time()),
+                              statbox = "stat1005",
+                              sqoopbox = "stat1004",
+                              stringsAsFactors = F)
+write.csv(toLabsGeoReport, "toLabsGeoReport.csv")
 
+# - to runtime Log:
+print(paste("--- UPDATE RUN COMPLETED ON:", Sys.time(), sep = " "))
 
+### --- copy reports to /srv/published-datasets/wdcm:
 
-
-
-
-
-
-
+# - WDCM_MainReport
+system(command = 'cp /home/goransm/RScripts/WDCM_R/WDCM_Logs/WDCM_GeoReport.csv /srv/published-datasets/wdcm/', wait = T)
+# - toLabsReport
+system(command = 'cp /home/goransm/RScripts/WDCM_R/WDCM_Logs/toLabsGeoReport.csv /srv/published-datasets/wdcm/', wait = T)
 

@@ -505,7 +505,6 @@ for (i in 1:length(wdcmSearchReport$category)) {
     # - [query04BErr]
     # - to runtime Log:
     print("--- Running query [query04BErr].")
-
     query04BErr <- system(command = hiveQLQueryCommand, wait = TRUE)
     if (query04BErr != 0) {
       # - to runtime Log:

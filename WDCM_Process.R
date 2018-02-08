@@ -296,6 +296,14 @@ if (length(checkTable) == 1) {
   dbClearResult(res)
   dbDisconnect(con)
 }
+
+#######################################
+### ---- NOTE on wb_terms
+# - This deprecated feature should no longer be used, 
+# - but is still available for reasons of backwards compatibility. 
+# - This feature was deprecated in version ??. use term_full_entity_id
+#######################################
+
 # - get item labels for wdcm2_project_item100
 items <- gsub("Q", "", unique(wdcm2_project_item100$eu_entity_id), fixed = T)
 itemList <- paste0(items, collapse = ", ", sep = "")
@@ -391,6 +399,14 @@ if (length(checkTable) == 1) {
   dbClearResult(res)
   dbDisconnect(con)
 }
+
+#######################################
+### ---- NOTE on wb_terms
+# - This deprecated feature should no longer be used, 
+# - but is still available for reasons of backwards compatibility. 
+# - This feature was deprecated in version ??. use term_full_entity_id
+#######################################
+
 # - get item labels for wdcm2_project_category_item100
 items <- gsub("Q", "", unique(wdcm2_project_category_item100$eu_entity_id), fixed = T)
 itemList <- paste0(items, collapse = ", ", sep = "")
@@ -524,6 +540,14 @@ for (i in 1:length(itemFiles)) {
   # - get item labels for categoryFile[i]
   items <- gsub("Q", "", unique(categoryFile$eu_entity_id), fixed = T)
   itemList <- paste0(items, collapse = ", ", sep = "")
+  
+  #######################################
+  ### ---- NOTE on wb_terms
+  # - This deprecated feature should no longer be used, 
+  # - but is still available for reasons of backwards compatibility. 
+  # - This feature was deprecated in version ??. use term_full_entity_id
+  #######################################
+  
   # - fetch English labels where available from wb_terms
   con <- dbConnect(MySQL(), 
                    host = "wikidatawiki.labsdb", 
@@ -820,6 +844,14 @@ for (i in 1:length(lF)) {
   # - get item labels for current wdcm2_itemtopic_
   items <- gsub("Q", "", unique(cTable$eu_entity_id), fixed = T)
   itemList <- paste0(items, collapse = ", ", sep = "")
+  
+  #######################################
+  ### ---- NOTE on wb_terms
+  # - This deprecated feature should no longer be used, 
+  # - but is still available for reasons of backwards compatibility. 
+  # - This feature was deprecated in version ??. use term_full_entity_id
+  #######################################
+  
   # - fetch English labels where available from wb_terms
   con <- dbConnect(MySQL(), 
                    host = "wikidatawiki.labsdb", 

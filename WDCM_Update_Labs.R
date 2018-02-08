@@ -208,9 +208,13 @@ if (tLoc < tProd) {
   setwd(destDir)
   lF <- list.files()
   lF <- lF[grepl("^wdcm_geoitem_", lF)]
+  # - escape white space in file names
+  lFiles <- sapply(lF, function(x) {
+    gsub(" ", "\\ ", x, fixed = T)
+  })
   for (i in 1:length(lF)) {
     system(paste('sudo cp ', destDir, 
-                 lF[i], 
+                 lFiles[i], 
                  ' /srv/shiny-server/WDCM_GeoDashboard/data/',
                  sep = ''),
            wait = F)

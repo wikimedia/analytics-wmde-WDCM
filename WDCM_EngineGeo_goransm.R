@@ -247,7 +247,7 @@ for (i in 1:length(categories)) {
   hiveQLQuery_1 <- "USE goransm; SET hive.mapred.mode=unstrict;"
   hiveQLQuery_2 <- paste("SELECT eu_entity_id, SUM(eu_count) AS usage FROM wdcm_maintable WHERE eu_entity_id IN (",
                          paste("\"", searchitems, "\"", collapse = ", ", sep = ""),
-                         ") GROUP BY eu_entity_id ORDER BY usage DESC LIMIT 1000;",
+                         ") GROUP BY eu_entity_id ORDER BY usage DESC LIMIT 10000;",
                          sep = "")
   hiveQLQuery <- paste(hiveQLQuery_1, hiveQLQuery_2, sep = " ")
   
@@ -309,15 +309,24 @@ for (i in 1:length(lF)) {
   
   # - usage data
   usage <- readLines(lF[i])
-  usage <- usage[-which(grepl("null", usage, fixed = T))]
-  usage <- usage[-which(usage == "")]
+  if (length(which(grepl("null", usage, fixed = T))) > 0) {
+    usage <- usage[-which(grepl("null", usage, fixed = T))]
+  }
+  if (length(which(usage %in% "")) > 0) {
+    usage <- usage[-which(usage %in% "")]
+  }
+  if (length(which(usage %in% " ")) > 0) {
+    usage <- usage[-which(usage %in% " ")]
+  }
   usageList <- lapply(usage, function(x) {
     udata <- strsplit(x, split = "\t", fixed = T)[[1]]
-    udata <- data.frame(item = udata[1], 
+    udata <- data.frame(item = udata[1],
                         usage = udata[2],
                         stringsAsFactors = F)
   })
   usage <- rbindlist(usageList)
+  # - remove previous headers
+  usage <- usage[-1, ]
   rm(usageList)
   # - coordinates data and labels
   setwd(itemsDir)

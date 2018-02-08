@@ -289,6 +289,15 @@ write.csv(myWD$subClasses, "wdcmStructure_SubClassFrame.csv")
 write.csv(myWD$entity, "wdcmStructure_Entities.csv")
 write.csv(myWD$counts, "wdcmStructure_Counts.csv")
 
+### --- updateReport File
+updateReport <- as.character(Sys.time())
+upY <- substr(updateReport, 1, 4)
+upM <- as.numeric(substr(updateReport, 6, 7))
+upM <- month.name[upM]
+upD <- substr(updateReport, 9, 10)
+updateReport <- paste0(upY, " ", upM, " ", upD)
+write(updateReport, "updateReport.txt")
+
 ### --------------------- cp to /srv/shiny-server/WDCM_Structure/_data
 system('sudo cp /home/goransm/WMDE/WDCM/WDCM_StructureDashboard/_data/* /srv/shiny-server/WDCM_StructureDashboard/_data', 
        wait = F)

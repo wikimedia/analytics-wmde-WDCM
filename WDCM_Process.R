@@ -4,7 +4,7 @@
 ### --- Script: WDCM_Process_v2.R, v. Beta 0.1
 ### ---------------------------------------------------------------------------
 ### --- DESCRIPTION:
-### --- WDCM_Process_v2.R takes a list of .tsv files that present
+### --- WDCM_Process.R takes a list of .tsv files that present
 ### --- the data from wbc_entity_usage tables accross the client projects
 ### --- fetched from production (stat1005) by WDCM_Search_Clients.R and 
 ### --- further pre-processed by WDCM_Pre-Process.R (also on production).
@@ -296,42 +296,51 @@ if (length(checkTable) == 1) {
   dbClearResult(res)
   dbDisconnect(con)
 }
-
-#######################################
-### ---- NOTE on wb_terms
-# - This deprecated feature should no longer be used, 
-# - but is still available for reasons of backwards compatibility. 
-# - This feature was deprecated in version ??. use term_full_entity_id
-#######################################
-
 # - get item labels for wdcm2_project_item100
-items <- gsub("Q", "", unique(wdcm2_project_item100$eu_entity_id), fixed = T)
-itemList <- paste0(items, collapse = ", ", sep = "")
-# - fetch English labels where available from wb_terms
-con <- dbConnect(MySQL(), 
-                 host = "wikidatawiki.labsdb", 
-                 defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
-                 dbname = "wikidatawiki_p",
-                 user = mySQLCreds$user,
-                 password = mySQLCreds$password)
-q <- paste("SELECT term_entity_id, term_text FROM wb_terms ",
-           "WHERE ((term_entity_id IN (", itemList, ")) AND ",
-           "(term_language = 'en') AND ",
-           "(term_entity_type = 'item') AND (term_type = 'label'));", 
-           sep = "");
-rm(itemList)
-res <- dbSendQuery(con, q)
-itemLabels <- fetch(res, -1)
-dbClearResult(res)
-dbDisconnect(con)
-itemLabels$term_entity_id <- paste("Q", itemLabels$term_entity_id, sep = "")
-colnames(itemLabels) <- c('eu_entity_id', 'eu_label')
+APIprefix <- 'https://www.wikidata.org/w/api.php?action=wbgetentities&'
+# - compose API call
+items <- unique(wdcm2_project_item100$eu_entity_id)
+# - fetch item labels in batches (max values = 50, MediaWiki API constraint)
+c <- 0
+ixStart <- 1
+iLabs <- list()
+# - # - to nohup.out
+print("Fetching item labels for wdcm2_project_item100.")
+repeat {
+  ixEnd <- ixStart + 50 - 1
+  searchItems <- items[ixStart:ixEnd]
+  w <- which(is.na(searchItems))
+  if (length(w) > 0) {searchItems <- searchItems[-w]}
+  ids <- paste(searchItems, collapse = "|")
+  query <- paste0(APIprefix, 
+                  'ids=', ids, '&',
+                  'props=labels&languages=en&sitefilter=wikidatawiki&languagefallback=true&format=json')
+  res <- GET(url = URLencode(query))
+  rc <- rawToChar(res$content)
+  rc <- fromJSON(rc)
+  itemLabels <- unlist(lapply(rc$entities, function(x) {
+    x$labels$en$value
+  }))
+  itemLabels <- data.frame(eu_entity_id = names(itemLabels), 
+                           eu_label = itemLabels, 
+                           stringsAsFactors = F, 
+                           row.names = c())
+  c <- c + 1
+  iLabs[[c]] <- itemLabels
+  if (length(searchItems) < 50) {
+    break
+  } else {
+    ixStart <- ixStart + 50
+  }
+}
+rm(res); rm(rc); gc()
+iLabs <- rbindlist(iLabs)
 # - insert labels to wdcm2_project_item100 + 
-wdcm2_project_item100 <- left_join(wdcm2_project_item100, itemLabels, by = 'eu_entity_id')
+wdcm2_project_item100 <- left_join(wdcm2_project_item100, iLabs, by = 'eu_entity_id')
 # - recognize missing English labels and replace w. the respective eu_entity_id value
 wdcm2_project_item100$eu_label[is.na(wdcm2_project_item100$eu_label)] <- 
   wdcm2_project_item100$eu_entity_id[is.na(wdcm2_project_item100$eu_label)]
-rm(itemLabels); gc()
+rm(iLabs); gc()
 # - CREATE wdcm2_project_item100
 con <- dbConnect(MySQL(), 
                  host = "tools.labsdb", 
@@ -399,43 +408,54 @@ if (length(checkTable) == 1) {
   dbClearResult(res)
   dbDisconnect(con)
 }
-
-#######################################
-### ---- NOTE on wb_terms
-# - This deprecated feature should no longer be used, 
-# - but is still available for reasons of backwards compatibility. 
-# - This feature was deprecated in version ??. use term_full_entity_id
-#######################################
-
-# - get item labels for wdcm2_project_category_item100
-items <- gsub("Q", "", unique(wdcm2_project_category_item100$eu_entity_id), fixed = T)
-itemList <- paste0(items, collapse = ", ", sep = "")
-# - fetch English labels where available from wb_terms
-con <- dbConnect(MySQL(), 
-                 host = "wikidatawiki.labsdb", 
-                 defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
-                 dbname = "wikidatawiki_p",
-                 user = mySQLCreds$user,
-                 password = mySQLCreds$password)
-q <- paste("SELECT term_entity_id, term_text FROM wb_terms ",
-           "WHERE ((term_entity_id IN (", itemList, ")) AND ",
-           "(term_language = 'en') AND ",
-           "(term_entity_type = 'item') AND (term_type = 'label'));", 
-           sep = "");
-rm(itemList); gc()
-res <- dbSendQuery(con, q)
-itemLabels <- fetch(res, -1)
-dbClearResult(res)
-dbDisconnect(con)
-itemLabels$term_entity_id <- paste("Q", itemLabels$term_entity_id, sep = "")
-colnames(itemLabels) <- c('eu_entity_id', 'eu_label')
+# - get item labels for wdcm_project_category_item100
+APIprefix <- 'https://www.wikidata.org/w/api.php?action=wbgetentities&'
+# - compose API call
+items <- unique(wdcm2_project_category_item100$eu_entity_id)
+# - fetch item labels in batches (max values = 50, MediaWiki API constraint)
+c <- 0
+ixStart <- 1
+iLabs <- list()
+# - # - to nohup.out
+print("Fetching item labels for wdcm_project_category_item100.")
+t1 <- Sys.time()
+repeat {
+  ixEnd <- ixStart + 50 - 1
+  searchItems <- items[ixStart:ixEnd]
+  w <- which(is.na(searchItems))
+  if (length(w) > 0) {searchItems <- searchItems[-w]}
+  ids <- paste(searchItems, collapse = "|")
+  query <- paste0(APIprefix, 
+                  'ids=', ids, '&',
+                  'props=labels&languages=en&sitefilter=wikidatawiki&languagefallback=true&format=json')
+  res <- GET(url = URLencode(query))
+  rc <- rawToChar(res$content)
+  rc <- fromJSON(rc)
+  itemLabels <- unlist(lapply(rc$entities, function(x) {
+    x$labels$en$value
+  }))
+  itemLabels <- data.frame(eu_entity_id = names(itemLabels), 
+                           eu_label = itemLabels, 
+                           stringsAsFactors = F, 
+                           row.names = c())
+  c <- c + 1
+  iLabs[[c]] <- itemLabels
+  if (length(searchItems) < 50) {
+    break
+  } else {
+    ixStart <- ixStart + 50
+  }
+}
+print(Sys.time() - t1)
+rm(res); rm(rc); gc()
+iLabs <- rbindlist(iLabs)
 # - insert labels to wdcm2_project_category_item100 + 
-wdcm2_project_category_item100 <- left_join(wdcm2_project_category_item100, itemLabels, 
+wdcm2_project_category_item100 <- left_join(wdcm2_project_category_item100, iLabs, 
                                             by = 'eu_entity_id')
 # - recognize missing English labels and replace w. the respective eu_entity_id value
 wdcm2_project_category_item100$eu_label[is.na(wdcm2_project_category_item100$eu_label)] <- 
   wdcm2_project_category_item100$eu_entity_id[is.na(wdcm2_project_category_item100$eu_label)]
-rm(itemLabels); gc()
+rm(iLabs); gc()
 # - CREATE wdcm2_project_category_item100
 con <- dbConnect(MySQL(), 
                  host = "tools.labsdb", 
@@ -538,41 +558,53 @@ for (i in 1:length(itemFiles)) {
   categoryFile <- fread(itemFiles[i], nrows = 100)
   categoryFile$category <- categoryName
   # - get item labels for categoryFile[i]
-  items <- gsub("Q", "", unique(categoryFile$eu_entity_id), fixed = T)
-  itemList <- paste0(items, collapse = ", ", sep = "")
+  APIprefix <- 'https://www.wikidata.org/w/api.php?action=wbgetentities&'
+  # - compose API call
+  items <- unique(categoryFile$eu_entity_id)
+  # - fetch item labels in batches (max values = 50, MediaWiki API constraint)
+  c <- 0
+  ixStart <- 1
+  iLabs <- list()
+  # - # - to nohup.out
+  print(paste0("Fetching item labels for categoryFile: ", i))
+  t1 <- Sys.time()
+  repeat {
+    ixEnd <- ixStart + 50 - 1
+    searchItems <- items[ixStart:ixEnd]
+    w <- which(is.na(searchItems))
+    if (length(w) > 0) {searchItems <- searchItems[-w]}
+    ids <- paste(searchItems, collapse = "|")
+    query <- paste0(APIprefix, 
+                    'ids=', ids, '&',
+                    'props=labels&languages=en&sitefilter=wikidatawiki&languagefallback=true&format=json')
+    res <- GET(url = URLencode(query))
+    rc <- rawToChar(res$content)
+    rc <- fromJSON(rc)
+    itemLabels <- unlist(lapply(rc$entities, function(x) {
+      x$labels$en$value
+    }))
+    itemLabels <- data.frame(eu_entity_id = names(itemLabels), 
+                             eu_label = itemLabels, 
+                             stringsAsFactors = F, 
+                             row.names = c())
+    c <- c + 1
+    iLabs[[c]] <- itemLabels
+    if (length(searchItems) < 50) {
+      break
+    } else {
+      ixStart <- ixStart + 50
+    }
+  }
+  print(Sys.time() - t1)
+  rm(res); rm(rc); gc()
+  iLabs <- rbindlist(iLabs)
   
-  #######################################
-  ### ---- NOTE on wb_terms
-  # - This deprecated feature should no longer be used, 
-  # - but is still available for reasons of backwards compatibility. 
-  # - This feature was deprecated in version ??. use term_full_entity_id
-  #######################################
-  
-  # - fetch English labels where available from wb_terms
-  con <- dbConnect(MySQL(), 
-                   host = "wikidatawiki.labsdb", 
-                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
-                   dbname = "wikidatawiki_p",
-                   user = mySQLCreds$user,
-                   password = mySQLCreds$password)
-  q <- paste("SELECT term_entity_id, term_text FROM wb_terms ",
-             "WHERE ((term_entity_id IN (", itemList, ")) AND ",
-             "(term_language = 'en') AND ",
-             "(term_entity_type = 'item') AND (term_type = 'label'));", 
-             sep = "");
-  rm(itemList); gc()
-  res <- dbSendQuery(con, q)
-  itemLabels <- fetch(res, -1)
-  dbClearResult(res)
-  dbDisconnect(con)
-  itemLabels$term_entity_id <- paste("Q", itemLabels$term_entity_id, sep = "")
-  colnames(itemLabels) <- c('eu_entity_id', 'eu_label')
   # - insert labels to categoryFile[i] + 
-  categoryFile <- left_join(categoryFile, itemLabels, by = 'eu_entity_id')
+  categoryFile <- left_join(categoryFile, iLabs, by = 'eu_entity_id')
   # - recognize missing English labels and replace w. the respective eu_entity_id value
   categoryFile$eu_label[is.na(categoryFile$eu_label)] <- 
     categoryFile$eu_entity_id[is.na(categoryFile$eu_label)]
-  rm(itemLabels); gc()
+  rm(iLabs); gc()
   # - populate wdcm2_category_item100 by categoryFile[i]
   con <- dbConnect(MySQL(), 
                    host = "tools.labsdb", 
@@ -842,41 +874,50 @@ for (i in 1:length(lF)) {
   cTable <- fread(lF[i])
   colnames(cTable)[1] <- 'eu_entity_id'
   # - get item labels for current wdcm2_itemtopic_
-  items <- gsub("Q", "", unique(cTable$eu_entity_id), fixed = T)
-  itemList <- paste0(items, collapse = ", ", sep = "")
-  
-  #######################################
-  ### ---- NOTE on wb_terms
-  # - This deprecated feature should no longer be used, 
-  # - but is still available for reasons of backwards compatibility. 
-  # - This feature was deprecated in version ??. use term_full_entity_id
-  #######################################
-  
-  # - fetch English labels where available from wb_terms
-  con <- dbConnect(MySQL(), 
-                   host = "wikidatawiki.labsdb", 
-                   defult.file = "/home/goransm/mySQL_Credentials/replica.my.cnf",
-                   dbname = "wikidatawiki_p",
-                   user = mySQLCreds$user,
-                   password = mySQLCreds$password)
-  q <- paste("SELECT term_entity_id, term_text FROM wb_terms ",
-             "WHERE ((term_entity_id IN (", itemList, ")) AND ",
-             "(term_language = 'en') AND ",
-             "(term_entity_type = 'item') AND (term_type = 'label'));", 
-             sep = "");
-  rm(itemList)
-  res <- dbSendQuery(con, q)
-  itemLabels <- fetch(res, -1)
-  dbClearResult(res)
-  dbDisconnect(con)
-  itemLabels$term_entity_id <- paste("Q", itemLabels$term_entity_id, sep = "")
-  colnames(itemLabels) <- c('eu_entity_id', 'eu_label')
+  APIprefix <- 'https://www.wikidata.org/w/api.php?action=wbgetentities&'
+  # - compose API call
+  items <- unique(cTable$eu_entity_id)
+  # - fetch item labels in batches (max values = 50, MediaWiki API constraint)
+  c <- 0
+  ixStart <- 1
+  iLabs <- list()
+  # - # - to nohup.out
+  print(paste0("Fetching item labels for ", i))
+  repeat {
+    ixEnd <- ixStart + 50 - 1
+    searchItems <- items[ixStart:ixEnd]
+    w <- which(is.na(searchItems))
+    if (length(w) > 0) {searchItems <- searchItems[-w]}
+    ids <- paste(searchItems, collapse = "|")
+    query <- paste0(APIprefix, 
+                    'ids=', ids, '&',
+                    'props=labels&languages=en&sitefilter=wikidatawiki&languagefallback=true&format=json')
+    res <- GET(url = URLencode(query))
+    rc <- rawToChar(res$content)
+    rc <- fromJSON(rc)
+    itemLabels <- unlist(lapply(rc$entities, function(x) {
+      x$labels$en$value
+    }))
+    itemLabels <- data.frame(eu_entity_id = names(itemLabels), 
+                             eu_label = itemLabels, 
+                             stringsAsFactors = F, 
+                             row.names = c())
+    c <- c + 1
+    iLabs[[c]] <- itemLabels
+    if (length(searchItems) < 50) {
+      break
+    } else {
+      ixStart <- ixStart + 50
+    }
+  }
+  rm(res); rm(rc); gc()
+  iLabs <- rbindlist(iLabs)
   # - insert labels to current wdcm2_itemtopic_
-  cTable <- left_join(cTable, itemLabels, by = 'eu_entity_id')
+  cTable <- left_join(cTable, iLabs, by = 'eu_entity_id')
   # - recognize missing English labels and replace w. the respective eu_entity_id value
   cTable$eu_label[is.na(cTable$eu_label)] <- 
     cTable$eu_entity_id[is.na(cTable$eu_label)]
-  rm(itemLabels); gc()
+  rm(iLabs); gc()
   # - write current wdcm2_itemtopic_
   con <- dbConnect(MySQL(),
                    host = "tools.labsdb",

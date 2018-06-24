@@ -43,8 +43,10 @@
 
 ### --- Setup
 library(RMySQL)
+library(stringr)
 library(httr)
 library(XML)
+library(jsonlite)
 library(data.table)
 library(dplyr)
 library(tidyr)
@@ -86,13 +88,15 @@ projectType <- function(projectName) {
 print(paste("WDCM Process.R update started at: ", Sys.time(), sep = ""))
 
 # - to working directory:
-# - credentials on tools.labsdb
 setwd('/home/goransm/WMDE/WDCM/WDCM_RScripts')
-mySQLCreds <- read.csv("mySQLCreds.csv",
-                       header = T,
-                       check.names = F,
-                       row.names = 1,
-                       stringsAsFactors = F)
+
+# - credentials on tools.labsdb
+cred <- readLines('/home/goransm/mySQL_Credentials/replica.my.cnf')
+mySQLCreds <- data.frame(user = gsub("^[[:alnum:]]+\\s=\\s", "", cred[2]),
+                         password = gsub("^[[:alnum:]]+\\s=\\s", "", cred[3]),
+                         stringsAsFactors = F)
+rm(cred)
+
 
 ### --- list existing tables
 con <- dbConnect(MySQL(), 
@@ -101,6 +105,7 @@ con <- dbConnect(MySQL(),
                  dbname = "u16664__wdcm_p",
                  user = mySQLCreds$user,
                  password = mySQLCreds$password)
+
 q <- "SHOW TABLES;"
 res <- dbSendQuery(con, q)
 st <- fetch(res, -1)

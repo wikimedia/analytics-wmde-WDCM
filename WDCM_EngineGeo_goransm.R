@@ -12,17 +12,20 @@
 ### --- WDCM_Engine_Geo contacts the WDQS SPARQL end-point
 ### --- and fetches the item IDs for several Wikidata concepts
 ### --- that have geographical co-ordinates. 
-### --- WDCM_Pre-Process.R
 ### --- The remainder of the script searches the Hive goransm.wdcm_maintable
-### --- for usage data and prepares the export .tsv files
-### --- that migrate to Labs (wikidataconcepts, currently) where they are
-### --- additionaly processed and stored to MariaDB to support
+### --- for usage data and prepares the export .tsv and .csv files
+### --- that migrate to Cloud VPS (wikidataconcepts, currently) where they support
 ### --- the WDCM Geo Dashboard.
 ### --- NOTE: the execution of this WDCM script is always dependent upon the
 ### --- previous WDCM_Sqoop_Clients.R run from stat1004 (currently).
 ### ---------------------------------------------------------------------------
 ### --- RUN FROM: /home/goransm/RScripts/WDCM_R
 ### --- nohup Rscript WDCM_EngineGeo_goransm.R &
+### --- on crontab stat 1005, user goransm:
+### --- # WDCM GeoDashboard Updates
+### --- 0 0  1 * * export USER=goransm && nice -10 Rscript 
+### --- /home/goransm/RScripts/WDCM_R/WDCM_EngineGeo_goransm.R >> 
+### --- /home/goransm/RScripts/WDCM_R/WDCM_Logs/WDCM_EngineGeoRuntimeLog.log 2>&1
 ### ---------------------------------------------------------------------------
 
 ### ---------------------------------------------------------------------------
@@ -64,7 +67,7 @@ library(jsonlite)
 ### --- Directories
 # - fPath: where the scripts is run from?
 fPath <- '/home/goransm/RScripts/WDCM_R'
-# - form paths:
+# - from paths:
 ontologyDir <- paste(fPath, '/WDCM_Ontology', sep = "")
 logDir <- paste(fPath, '/WDCM_Logs', sep = "")
 itemsDir <- paste(fPath, '/WDCM_CollectedGeoItems', sep = "")
@@ -109,12 +112,9 @@ startTime <- as.character(Sys.time())
 for (i in 1:length(wdcmGeoItems$item)) {
 
   # - to runtime Log:
-  print(paste("--- SPARQL category:", i, sep = " "))
+  print(paste("--- SPARQL category:", i, ":", wdcmGeoItems$itemLabel[i], sep = " "))
   
-  searchItems <- str_trim(
-  strsplit(wdcmGeoItems$item[i],
-           split = ",", fixed = T)[[1]],
-  "both")
+  searchItems <- str_trim(wdcmGeoItems$item[i], "both")
   
   # - Construct Query:
   query <- paste0(
@@ -127,53 +127,76 @@ for (i in 1:length(wdcmGeoItems$item)) {
     ' }'
   )
   
-  # Run Query:
-  res <- GET(url = paste0(endPointURL, URLencode(query)))
-  
-  if (res$status_code == 200) {
+  # Run query against WDQS:
+  repeat {
     
-    # - to runtime Log:
-    print(paste("Parsing now SPARQL category:", i, sep = ""))
-  
-    # - JSON:
-    rc <- rawToChar(res$content)
-    # clear:
-    rm(res); gc()
-    # - fromJSON:
-    rc <- fromJSON(rc, simplifyDataFrame = T)
-    # - extract:
-    item <- rc$results$bindings$item$value
-    coordinate <- rc$results$bindings$coordinate$value
-    label <- rc$results$bindings$itemLabel$value
-    # - as.data.frame:
-    items <- data.frame(item = item,
-                        coordinate = coordinate, 
-                        label = label,
-                        stringsAsFactors = F)
-    # - clear:
-    rm(item); rm(coordinate); rm(label); rm(rc); gc()
-    # - keep unique result set:
-    w <- which(duplicated(items$item))
-    if (length(w) > 0) {items <- items[-w, ]}
-    # - clear possible NAs from coordinates
-    w <- which(is.na(items$coordinate) | (items$coordinate == ""))
-    if (length(w) > 0) {items <- items[-w, ]}
-    # - fix items
-    items$item <- gsub("http://www.wikidata.org/entity/", "", items$item, fixed = T)
-    # - fix coordinates (lon, lat)
-    items$coordinate <- gsub("Point(", "", items$coordinate, fixed = T)
-    items$coordinate <- gsub(")", "", items$coordinate, fixed = T)
-    lon <- str_extract(items$coordinate, "^.+\\s")
-    lat <- str_extract(items$coordinate, "\\s.+$")
-    items$coordinate <- NULL
-    items$lon <- lon
-    items$lat <- lat
-    # clear:
-    rm(lon); rm(lat); gc()
+    # - run query:
+    res <- GET(url = paste0(endPointURL, URLencode(query)))
     
-  } else {
-    qErrors <- append(qErrors, searchItems)
+    # - check query:
+    if (res$status_code != 200) {
+      # - to runtime Log:
+      print(paste("Server response not 200 for SPARQL category:", i, "; repeating.", sep = ""))
+      rc <- 'error'
+    } else {
+      print(paste("Parsing now SPARQL category:", i, sep = ""))
+      # - JSON:
+      rc <- rawToChar(res$content)
+      rc <- tryCatch(
+        {
+          # - fromJSON:
+          fromJSON(rc, simplifyDataFrame = T)
+        },
+        warning = function(cond) {
+          # - return error:
+          print(paste("Parsing now SPARQL category:", i, " failed w. warning; repeating.", sep = ""))
+          'error'
+        }, 
+        error = function(cond) {
+          # - return error:
+          print(paste("Parsing now SPARQL category:", i, " failed w. error; repeating.", sep = ""))
+          'error'
+        }
+      )
+    }
+    # - condition:
+    if (res$status_code == 200 & class(rc) == 'list') {
+      break
+    }
   }
+  
+  # - clean:
+  rm(res)
+  
+  # - extract:
+  item <- rc$results$bindings$item$value
+  coordinate <- rc$results$bindings$coordinate$value
+  label <- rc$results$bindings$itemLabel$value
+  # - as.data.frame:
+  items <- data.frame(item = item,
+                      coordinate = coordinate,
+                      label = label,
+                      stringsAsFactors = F)
+  # - clear:
+  rm(item); rm(coordinate); rm(label); rm(rc); gc()
+  # - keep unique result set:
+  w <- which(duplicated(items$item))
+  if (length(w) > 0) {items <- items[-w, ]}
+  # - clear possible NAs from coordinates
+  w <- which(is.na(items$coordinate) | (items$coordinate == ""))
+  if (length(w) > 0) {items <- items[-w, ]}
+  # - fix items
+  items$item <- gsub("http://www.wikidata.org/entity/", "", items$item, fixed = T)
+  # - fix coordinates (lon, lat)
+  items$coordinate <- gsub("Point(", "", items$coordinate, fixed = T)
+  items$coordinate <- gsub(")", "", items$coordinate, fixed = T)
+  lon <- str_extract(items$coordinate, "^.+\\s")
+  lat <- str_extract(items$coordinate, "\\s.+$")
+  items$coordinate <- NULL
+  items$lon <- lon
+  items$lat <- lat
+  # clear:
+  rm(lon); rm(lat); gc()
   
   # store as CSV
   write_csv(items, path = paste0(wdcmGeoItems$itemLabel[i],"_ItemIDs.csv"))
@@ -188,8 +211,6 @@ for (i in 1:length(wdcmGeoItems$item)) {
 print("--- LOG: Collect_Items step completed.")
 # - set log dir:
 setwd(logDir)
-# - log uncompleted queries
-write.csv(qErrors, "WDCM_Collect_GeoItems_SPARQL_Errors.csv")
 # - write to WDCM main reporting file:
 lF <- list.files()
 if ('WDCM_GeoReport.csv' %in% lF) {

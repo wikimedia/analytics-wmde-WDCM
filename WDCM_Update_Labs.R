@@ -1,4 +1,3 @@
-### ---------------------------------------------------------------------------
 ### --- WDCM Process Module, v. Beta 0.1
 ### --- Script: WDCM_Update_Labs.R, v. Beta 0.1
 ### ---------------------------------------------------------------------------
@@ -148,7 +147,7 @@ if (tLoc < tProd) {
 
 ### ---------------------------------------------------------------------------
 ### --- 2. WDCM GeoDashboard Update
-### --- affected dashboards: Overview, Usage, Semantics
+### --- affected dashboards: GeoDashboard
 ### ---------------------------------------------------------------------------
 
 ### --- Check update timestamp in production:
@@ -248,4 +247,149 @@ if (tLoc < tProd) {
   }
   
 }
+
+
+### ---------------------------------------------------------------------------
+### --- 3. WDCM Dashboards: Biases Dashboard
+### --- affected dashboards: WDCM Biases
+### ---------------------------------------------------------------------------
+
+### --- fetch WDCM Biases Dashboard Data and place to:
+### --- /home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/
+
+### --- update File
+download.file('https://analytics.wikimedia.org/datasets/wdcm/update_WDCMBiases.csv',
+              destfile = '/home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/update_WDCMBiases.csv',
+              quiet = T)
+
+### --- data
+
+# - genderProjectDataSet.csv
+download.file('https://analytics.wikimedia.org/datasets/wdcm/genderProjectDataSet.csv',
+              destfile = '/home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/genderProjectDataSet.csv',
+              quiet = T)
+# - globalIndicators.csv
+download.file('https://analytics.wikimedia.org/datasets/wdcm/globalIndicators.csv',
+              destfile = '/home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/globalIndicators.csv',
+              quiet = T)
+# - mfPropProject.csv
+download.file('https://analytics.wikimedia.org/datasets/wdcm/mfPropProject.csv',
+              destfile = '/home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/mfPropProject.csv',
+              quiet = T)
+# - occUsage.csv
+download.file('https://analytics.wikimedia.org/datasets/wdcm/occUsage.csv',
+              destfile = '/home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/occUsage.csv',
+              quiet = T)
+
+### --- visuals
+
+# - genderUsage_Distribution.png
+download.file('https://analytics.wikimedia.org/datasets/wdcm/genderUsage_Distribution.png',
+              destfile = '/home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/genderUsage_Distribution.png',
+              quiet = T)
+# - genderUsage_Distribution_jitterp.png
+download.file('https://analytics.wikimedia.org/datasets/wdcm/genderUsage_Distribution_jitterp.png',
+              destfile = '/home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/genderUsage_Distribution_jitterp.png',
+              quiet = T)
+# - M_Items_Distribution.png
+download.file('https://analytics.wikimedia.org/datasets/wdcm/M_Items_Distribution.png',
+              destfile = '/home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/M_Items_Distribution.png',
+              quiet = T)
+# - F_Items_Distribution.png
+download.file('https://analytics.wikimedia.org/datasets/wdcm/F_Items_Distribution.png',
+              destfile = '/home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/F_Items_Distribution.png',
+              quiet = T)
+# - Gender_LorenzCurves.png
+download.file('https://analytics.wikimedia.org/datasets/wdcm/Gender_LorenzCurves.png',
+              destfile = '/home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/Gender_LorenzCurves.png',
+              quiet = T)
+
+### --- copy all WDCM Biases DATA files and the UPDATE file to
+### --- /srv/shiny-server/WDCM_BiasesDashboard/_data/
+
+# - update
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/update_WDCMBiases.csv /srv/shiny-server/WDCM_BiasesDashboard/_data/', 
+       wait = F)
+
+# - genderProjectDataSet.csv
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/genderProjectDataSet.csv /srv/shiny-server/WDCM_BiasesDashboard/_data/', 
+       wait = F)
+
+# - globalIndicators.csv
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/globalIndicators.csv /srv/shiny-server/WDCM_BiasesDashboard/_data/', 
+       wait = F)
+
+# - mfPropProject.csv
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/mfPropProject.csv /srv/shiny-server/WDCM_BiasesDashboard/_data/', 
+       wait = F)
+
+# - occUsage.csv
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/occUsage.csv /srv/shiny-server/WDCM_BiasesDashboard/_data/', 
+       wait = F)
+
+### --- copy all WDCM Biases VISUAL files to
+### --- /srv/shiny-server/WDCM_BiasesDashboard/www/
+
+# - genderUsage_Distribution.png
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/genderUsage_Distribution.png /srv/shiny-server/WDCM_BiasesDashboard/www/', 
+       wait = F)
+
+# - genderUsage_Distribution_jitterp.png
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/genderUsage_Distribution_jitterp.png /srv/shiny-server/WDCM_BiasesDashboard/www/', 
+       wait = F)
+
+# - M_Items_Distribution.png
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/M_Items_Distribution.png /srv/shiny-server/WDCM_BiasesDashboard/www/', 
+       wait = F)
+
+# - F_Items_Distribution.png
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/F_Items_Distribution.png /srv/shiny-server/WDCM_BiasesDashboard/www/', 
+       wait = F)
+
+# - Gender_LorenzCurves.png
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_BiasesDashboardUpdate/Gender_LorenzCurves.png /srv/shiny-server/WDCM_BiasesDashboard/www/', 
+       wait = F)
+
+
+### ---------------------------------------------------------------------------
+### --- 4. Technical Wishlist: Advanced Search Extension Dashboard
+### --- affected dashboards: Advanced Search Extension Dashboard
+### ---------------------------------------------------------------------------
+
+### --- data
+
+# - asExtensionUpdate.csv
+download.file('https://analytics.wikimedia.org/datasets/wmde-analytics-engineering/TechnicalWishes/AdvancedSearchExtension/asExtensionUpdate.csv',
+              destfile = '/home/goransm/WMDE/TechnicalWishes/AdvancedSearchExtension/data/asExtensionUpdate.csv',
+              quiet = T)
+
+# - cirrusSearchUpdate.csv
+download.file('https://analytics.wikimedia.org/datasets/wmde-analytics-engineering/TechnicalWishes/AdvancedSearchExtension/cirrusSearchUpdate.csv',
+              destfile = '/home/goransm/WMDE/TechnicalWishes/AdvancedSearchExtension/data/cirrusSearchUpdate.csv',
+              quiet = T)
+
+# - cirrusSearchUpdateKeywords.csv
+download.file('https://analytics.wikimedia.org/datasets/wmde-analytics-engineering/TechnicalWishes/AdvancedSearchExtension/cirrusSearchUpdateKeywords.csv',
+              destfile = '/home/goransm/WMDE/TechnicalWishes/AdvancedSearchExtension/data/cirrusSearchUpdateKeywords.csv',
+              quiet = T)
+
+### --- copy data:
+
+# - asExtensionUpdate.csv
+system('sudo cp /home/goransm/WMDE/TechnicalWishes/AdvancedSearchExtension/data/asExtensionUpdate.csv /srv/shiny-server/TW_AdvancedSearchExtension/data/', 
+       wait = F)
+
+# - cirrusSearchUpdate.csv
+system('sudo cp /home/goransm/WMDE/TechnicalWishes/AdvancedSearchExtension/data/cirrusSearchUpdate.csv /srv/shiny-server/TW_AdvancedSearchExtension/data/', 
+       wait = F)
+
+# - cirrusSearchUpdateKeywords.csv
+system('sudo cp /home/goransm/WMDE/TechnicalWishes/AdvancedSearchExtension/data/cirrusSearchUpdateKeywords.csv /srv/shiny-server/TW_AdvancedSearchExtension/data/', 
+       wait = F)
+
+
+###### ------- Restart Shiny Server
+# system('sudo restart shiny-server', 
+#        wait = F)
+###### ------- Restart Shiny Server END
 

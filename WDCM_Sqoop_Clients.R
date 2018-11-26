@@ -57,12 +57,12 @@ dataDir <- '/srv/published-datasets/wdcm'
 # - we need only the logDir here:
 setwd(logDir)
 
-# - check for the existence of the runtime Log
-# - and delete the old log if it's found:
-lF <- list.files()
-if ('WDCM_SqoopRuntimeLog.log' %in% lF) {
-  file.remove('WDCM_SqoopRuntimeLog.log')
-}
+# # - check for the existence of the runtime Log
+# # - and delete the old log if it's found:
+# lF <- list.files()
+# if ('WDCM_SqoopRuntimeLog.log' %in% lF) {
+#   file.remove('WDCM_SqoopRuntimeLog.log')
+# }
 
 # - to runtime Log:
 print(paste("--- UPDATE RUN STARTED ON:", Sys.time(), sep = " "))
@@ -76,18 +76,27 @@ mySqlInput <- '"SHOW DATABASES;" > /home/goransm/RScripts/WDCM_R/WDCM_Logs/datab
 # - command:
 mySqlCommand <- paste0("mysql ", mySqlArgs, " -e ", mySqlInput, collapse = "")
 system(command = mySqlCommand, wait = TRUE)
+
 # - get databases
 clients <- read.table('databases.tsv', 
                       header = T, 
                       check.names = F, 
                       stringsAsFactors = F, 
                       sep = "\t")
+
 # - select client projects
 wClients <- which(grepl("wiki$|books$|voyage$|source$|quote$|wiktionary$|news$|media$", clients$Database))
 clients <- clients$Database[wClients]
 # - remove test wikis:
-wTest <- which(grepl("^test", clients))
+wTest <- which(grepl("test", clients))
 if (length(wTest) > 0) {clients <- clients[-wTest]}
+# - remove wikimania
+wWikiMania <- which(grepl("wikimania", clients))
+if (length(wWikiMania) > 0) {clients <- clients[-wWikiMania]}
+# - remove commonswiki
+# wCommonswiki <- which(grepl("commonswiki", clients))
+# if (length(wCommonswiki) > 0) {clients <- clients[-wCommonswiki]}
+
 # - look-up for wbc_entity_usage tables
 projectsTracking <- character()
 # - select projects that have client-side Wikidata tracking enabled
@@ -121,6 +130,8 @@ wdcmSqoopReport <- data.frame(project = projectsTracking,
                               endTime = character(length(projectsTracking)),
                               stringsAsFactors = F
                               )
+
+### --- Sqoop orchestration starts:
 for (i in 1:length(projectsTracking)) {
   
   # - to runtime Log:
@@ -131,7 +142,11 @@ for (i in 1:length(projectsTracking)) {
     hiveCommand <- '"USE goransm; DROP TABLE IF EXISTS wdcm_clients_wb_entity_usage;"'
     hiveCommand <- paste("/usr/local/bin/beeline --silent -e ", hiveCommand, sep = "")
     system(command = hiveCommand, wait = TRUE)
-    }
+    # -  delete files for EXTERNAL Hive table from /user/goransm/wdcmsqoop (hdfs path)
+    system(command = 'hdfs dfs -rm -r /user/goransm/wdcmsqoop', wait = T)
+  }
+  # - make EXTERNAL Hive tables directory: /user/goransm/wdcmsqoop (hdfs path)
+  system(command = 'hdfs dfs -mkdir /user/goransm/wdcmsqoop', wait = T)
   wdcmSqoopReport$project[i] <- projectsTracking[i]
   wdcmSqoopReport$startTime[i] <- as.character(Sys.time())
   # - sqoop command:
@@ -150,8 +165,7 @@ for (i in 1:length(projectsTracking)) {
                         \\\`eu_row_id\\\`           bigint      COMMENT '',
                         \\\`eu_entity_id\\\`        string      COMMENT '',
                         \\\`eu_aspect\\\`           string      COMMENT '',
-                        \\\`eu_page_id\\\`          bigint      COMMENT '',
-                        \\\`eu_touched\\\`          string      COMMENT ''
+                        \\\`eu_page_id\\\`          bigint      COMMENT ''
                       )
                       COMMENT
                         ''
@@ -173,9 +187,10 @@ for (i in 1:length(projectsTracking)) {
 
   # - REPORT
   wdcmSqoopReport$endTime[i] <- as.character(Sys.time())
-  print(paste("FINISHED PROJECT:", i, sep = " "))
+  print(paste0("FINISHED PROJECT: ", i, " ", projectsTracking[i], "."))
 
 }
+### --- Sqoop orchestration ends.
 
 # - check for the existence of the wdcmSqoopReport file
 # - and delete the old file if it's found:

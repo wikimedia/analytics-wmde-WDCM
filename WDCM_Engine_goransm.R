@@ -77,12 +77,14 @@
 # - contact:
 library(httr)
 library(XML)
+library(jsonlite)
 # - wrangling:
 library(stringr)
 library(readr)
 library(data.table)
 library(tidyr)
 # - modeling:
+library(snowfall)
 library(maptpx)
 library(Rtsne)
 library(proxy)
@@ -94,12 +96,15 @@ fPath <- '/home/goransm/RScripts/WDCM_R/'
 ontologyDir <- paste(fPath, 'WDCM_Ontology', sep = "")
 logDir <- paste(fPath, 'WDCM_Logs', sep = "")
 itemsDir <- paste(fPath, 'WDCM_CollectedItems', sep = "")
+structureDir <- paste(fPath, 'WDCM_Structure', sep = "")
 # - stat1005 published-datasets, maps onto
 # - https://analytics.wikimedia.org/datasets/wdcm/
 dataDir <- '/srv/published-datasets/wdcm'
 
 # - to runtime Log:
 print(paste("--- UPDATE RUN STARTED ON:", Sys.time(), sep = " "))
+# - GENERAL TIMING:
+generalT1 <- Sys.time()
 
 ### --- Set proxy
 Sys.setenv(
@@ -115,9 +120,12 @@ wdcmOntology <- read.csv("WDCM_Ontology_Berlin_05032017.csv",
                          check.names = F,
                          stringsAsFactors = F)
 
-### --- Select all instances accross all sub-classes of searchItems:
-# - endPoint:
-endPointURL <- "https://query.wikidata.org/bigdata/namespace/wdq/sparql?format=xml&query="
+# - WDQS Classes endPoint
+# - NOTE: from https://www.mediawiki.org/wiki/Wikidata_Query_Service/Categories
+# - an endpoint is provided which does not return any results except for the very 
+# - gas:in class that was inputed to BFS.
+# - Using the "default" WDQS SPARQL endpoint here (this delivers):
+endPointURL <- "https://query.wikidata.org/bigdata/namespace/wdq/sparql?format=json&query="
 
 # - set itemsDir:
 setwd(itemsDir)
@@ -133,9 +141,9 @@ qErrors <- character()
 startTime <- as.character(Sys.time())
 
 for (i in 1:length(wdcmOntology$CategoryItems)) {
-
+  
   # - to runtime Log:
-  print(paste("--- SPARQL category:", i, sep = " "))
+  print(paste0("--- SPARQL category: ", wdcmOntology$WikidataDescription[i]))
 
   searchItems <- str_trim(
     strsplit(wdcmOntology$CategoryItems[i],
@@ -145,62 +153,101 @@ for (i in 1:length(wdcmOntology$CategoryItems)) {
   itemsOut <- list()
 
   for (k in 1:length(searchItems)) {
-
+    
+    ### --- fetch all subclasses
+    
+    # - define targetClass
+    targetClass <- searchItems[k]
+    
+    # - to runtime Log:
+    print(paste0("--- SPARQL sub-category: ", targetClass))
+    
     # - Construct Query:
-    query <- paste0(
-      'PREFIX wd: <http://www.wikidata.org/entity/> ',
-      'PREFIX wdt: <http://www.wikidata.org/prop/direct/> ',
-      'SELECT ?item WHERE {?item (wdt:P31|(wdt:P31/wdt:P279*)) wd:',
-      searchItems[k],
-      '.  }'
-    )
+    query <- paste0('SELECT ?item WHERE { 
+                      SERVICE gas:service { 
+                        gas:program gas:gasClass "com.bigdata.rdf.graph.analytics.BFS" . 
+                        gas:program gas:in wd:', targetClass, ' .
+                        gas:program gas:linkType wdt:P279 .
+                        gas:program gas:out ?subClass .
+                        gas:program gas:traversalDirection "Reverse" .
+                      } . 
+                      ?item wdt:P31 ?subClass 
+                    }')
 
-    # Run Query:
-    res <- GET(url = paste0(endPointURL, URLencode(query)))
-
-    if (res$status_code == 200) {
-
-      # XML:
-      rc <- rawToChar(res$content)
-      # rc <- htmlParse(rc)
-
-      # clear:
-      rm(res); gc()
-
-      # extract:
-      # - to runtime Log:
-      print(paste("Parsing now SPARQL category:", i, sep = ""))
-      items <- unlist(str_extract_all(rc, "Q[[:digit:]]+", simplify = F))
-
-      # - as.data.frame:
-      items <- data.frame(item = items,
-                          stringsAsFactors = F)
-
-      # - to itemsOut:
-      itemsOut[[k]] <- items
-
-      # - clear:
-      rm(items); gc()
-
-    } else {
-      qErrors <- append(qErrors, searchItems[k])
+    # - Run Query:
+    res <- tryCatch({
+      GET(url = paste0(endPointURL, URLencode(query)))
+    },
+    error = function(condition) {
+      print("Something's wrong on WDQS: wait 10 secs, try again.")
+      Sys.sleep(10)
+      GET(url = paste0(endPointURL, URLencode(query)))
+    },
+    warning = function(condition) {
+      print("Something's wrong on WDQS: wait 10 secs, try again.")
+      Sys.sleep(10)
+      GET(url = paste0(endPointURL, URLencode(query)))
     }
+    )
+    # - wrangle:
+    if (res$status_code == 200) {
+      
+      # - tryCatch rawToChar
+      # - NOTE: fails for long vectors
+      rc <- tryCatch(
+        {
+          rawToChar(res$content)
+        },
+        error = function(condition) {
+          return(FALSE)
+          }
+        )
+        
+      if (rc == FALSE) {
+        print("rawToChar() conversion failed. Skipping.")
+        next
+      }
+      
+      # - is.ExceptionTimeout
+      queryTimeout <- grepl("timeout", rc, ignore.case = TRUE)
+      if (queryTimeout) {
+        print("Query timeout (!)")
+      }
 
+      rc <- data.frame(item = unlist(str_extract_all(rc, "Q[[:digit:]]+")), 
+                       stringsAsFactors = F)
+    } else {
+      print(paste0("Server response: ", res$status_code))
+      qErrors <- append(qErrors, targetClass)
+    }
+    
+    itemsOut[[k]] <- rc
+  
   }
-
-  # - itemsOut as data.frame:
-  itemsOut <- rbindlist(itemsOut)
-
-  # - keep only unique items:
-  w <- which(!(duplicated(itemsOut$item)))
-  itemsOut <- itemsOut[w]
-
-  # store as CSV
-  write_csv(itemsOut, path = paste0(wdcmOntology$Category[i],"_ItemIDs.csv"))
-
-  # clear:
-  rm(itemsOut); gc()
-
+  
+  # - store
+  if (length(itemsOut) > 0) {
+  
+    # - itemsOut as data.table:
+    itemsOut <- rbindlist(itemsOut)
+    # - write complete structure for category
+    filename <- paste0(wdcmOntology$Category[i], "_Structure.csv")
+    setwd(structureDir)
+    write.csv(itemsOut, filename)
+    
+    # - keep only unique items:
+    w <- which(!(duplicated(itemsOut$item)))
+    itemsOut <- itemsOut[w]
+  
+    # store as CSV
+    filename <- paste0(wdcmOntology$Category[i],"_ItemIDs.csv")
+    setwd(itemsDir)
+    write_csv(itemsOut, filename)
+  
+    # clear:
+    rm(itemsOut); gc()
+  }
+  
 }
 
 ### --- Fix WDCM_Ontology (Phab T174896#3762820)
@@ -926,9 +973,9 @@ for (i in 1:length(itemFiles)) {
   categoryName <- strsplit(categoryName, "_", fixed = T)[[1]][3]
   categoryName <- gsub("([[:lower:]])([[:upper:]])", "\\1 \\2", categoryName)
   # - load items
-  # - NOTE: AN ARBITRARY DECISION TO MODEL TOP 5000 MOST FREQUENTLY USED ITEMS:
-  # - nrows = 5000
-  categoryFile <- fread(itemFiles[i], nrows = 5000)
+  # - NOTE: AN ARBITRARY DECISION TO MODEL TOP 1000 MOST FREQUENTLY USED ITEMS:
+  Nitems = 1000
+  categoryFile <- fread(itemFiles[i], nrows = Nitems)
   # - list of items to fetch
   itemList <- categoryFile$eu_entity_id
   # - hiveQL:
@@ -1013,55 +1060,71 @@ for (i in 1:length(itemFiles)) {
   categoryName <- strsplit(categoryName, split = "_", fixed = T)[[1]][2]
 
   # - topic modeling:
-  itemCat <- read.csv(itemFiles[i],
-                      header = T,
-                      check.names = F,
-                      row.names = 1,
-                      stringsAsFactors = F)
-  itemCat <- as.simple_triplet_matrix(itemCat)
-  
-  ## -- run on K = seq(2,20) semantic topics
-  
-  # - to runtime Log:
-  print(paste("----------------------- LDA model: category ", i, ".", sep = ""))  
-  topicModel <- list()
-  numTopics <- seq(2, 10, by = 1)
-  for (k in 1:length(numTopics)) {
-    topicModel[[k]] <- maptpx::topics(counts = itemCat,
-                                      K = numTopics[k],
-                                      shape = NULL,
-                                      initopics = NULL,
-                                      tol = 0.1,
-                                      bf = T,
-                                      kill = 0,
-                                      ord = TRUE,
-                                      verb = 2)
+  itemCat <- tryCatch({
+    read.csv(itemFiles[i],
+             header = T,
+             check.names = F,
+             row.names = 1,
+             stringsAsFactors = F)
+  },
+  error = function(condition) {NULL}
+  )
+  if (!is.null(itemCat)) {
+   
+    itemCat <- as.simple_triplet_matrix(itemCat)
+    
+    ## -- run on K = seq(2,20) semantic topics
+    ####### ----------- PARALLEL w. {snowfall} STARTS
+    # - start cluster and export data + package
+    sfInit(parallel = T, cpus = 19)
+    sfExport("itemCat")
+    sfLibrary(maptpx)
+    
+    # - to runtime Log:
+    print(paste("----------------------- LDA model: category ", i, ".", sep = ""))  
+    topicModel <- list()
+    numTopics <- seq(2, 20, by = 1)
+    topicModels <- sfClusterApplyLB(numTopics,
+                                    function(x) {
+                                      maptpx::topics(counts = itemCat,
+                                                     K = x, bf = T,
+                                                     shape = NULL, initopics = NULL,
+                                                     tol = .01, kill = 0,
+                                                     ord = TRUE, verb = 0)
+                                    }
+    )
+    
+    # - stop cluster
+    sfStop()
+    
+    # - clear:
+    rm(itemCat); gc()
+    # - determine model from Bayes Factor against Null:
+    wModel <- which.max(sapply(topicModels, function(x) {x$BF}))[1]
+    topicModel <- topicModels[[wModel]]
+    rm(topicModels)
+    
+    # - collect matrices:
+    wdcm_itemtopic <- as.data.frame(topicModel$theta)
+    colnames(wdcm_itemtopic) <- paste("topic", seq(1, dim(wdcm_itemtopic)[2]), sep = "")
+    itemTopicFileName <- paste('wdcm2_itemtopic',
+                               paste(categoryName, ".csv", sep = ""),
+                               sep = "_")
+    write.csv(wdcm_itemtopic, itemTopicFileName)
+    
+    wdcm_projecttopic <- as.data.frame(topicModel$omega)
+    colnames(wdcm_projecttopic) <- paste("topic", seq(1, dim(wdcm_projecttopic)[2]), sep = "")
+    wdcm_projecttopic$project <- rownames(wdcm_projecttopic)
+    wdcm_projecttopic$projecttype <- projectType(wdcm_projecttopic$project)
+    projectTopicFileName <- paste('wdcm2_projecttopic',
+                                  paste(categoryName, ".csv", sep = ""),
+                                  sep = "_")
+    write.csv(wdcm_projecttopic, projectTopicFileName)
+    
+    # - clear:
+    rm(topicModel); rm(wdcm_projecttopic); rm(wdcm_itemtopic); gc()
+     
   }
-  # - clear:
-  rm(itemCat); gc()
-  # - determine model from Bayes Factor against Null:
-  wModel <- which.max(sapply(topicModel, function(x) {x$BF}))
-  topicModel <- topicModel[[wModel]]
-
-  # - collect matrices:
-  wdcm_itemtopic <- as.data.frame(topicModel$theta)
-  colnames(wdcm_itemtopic) <- paste("topic", seq(1, dim(wdcm_itemtopic)[2]), sep = "")
-  itemTopicFileName <- paste('wdcm2_itemtopic',
-                             paste(categoryName, ".csv", sep = ""),
-                             sep = "_")
-  write.csv(wdcm_itemtopic, itemTopicFileName)
-
-  wdcm_projecttopic <- as.data.frame(topicModel$omega)
-  colnames(wdcm_projecttopic) <- paste("topic", seq(1, dim(wdcm_projecttopic)[2]), sep = "")
-  wdcm_projecttopic$project <- rownames(wdcm_projecttopic)
-  wdcm_projecttopic$projecttype <- projectType(wdcm_projecttopic$project)
-  projectTopicFileName <- paste('wdcm2_projecttopic',
-                                paste(categoryName, ".csv", sep = ""),
-                                sep = "_")
-  write.csv(wdcm_projecttopic, projectTopicFileName)
-
-  # - clear:
-  rm(topicModel); rm(wdcm_projecttopic); rm(wdcm_itemtopic); gc()
 
 }
 
@@ -1180,3 +1243,10 @@ print(paste("--- UPDATE RUN COMPLETED ON:", Sys.time(), sep = " "))
 system(command = 'cp /home/goransm/RScripts/WDCM_R/WDCM_Logs/WDCM_MainReport.csv /srv/published-datasets/wdcm/', wait = T)
 # - toLabsReport
 system(command = 'cp /home/goransm/RScripts/WDCM_R/WDCM_Logs/toLabsReport.csv /srv/published-datasets/wdcm/', wait = T)
+
+
+# - GENERAL TIMING:
+generalT2 <- Sys.time()
+# - GENERAL TIMING REPORT:
+print(paste0("FULL WDCM UPDATE DONE IN: ", generalT2 - generalT1, "."))
+

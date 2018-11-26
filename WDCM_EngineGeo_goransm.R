@@ -71,12 +71,14 @@ fPath <- '/home/goransm/RScripts/WDCM_R'
 ontologyDir <- paste(fPath, '/WDCM_Ontology', sep = "")
 logDir <- paste(fPath, '/WDCM_Logs', sep = "")
 itemsDir <- paste(fPath, '/WDCM_CollectedGeoItems', sep = "")
-# - stat1005 published-datasets, maps onto 
+# - stat1007 published-datasets, maps onto 
 # - https://analytics.wikimedia.org/datasets/wdcm/
 dataDir <- '/srv/published-datasets/wdcm'
 
 # - to runtime Log:
-print(paste("--- UPDATE RUN STARTED ON:", Sys.time(), sep = " "))
+print(paste("--- WDCM GeoEngine update STARTED ON:", Sys.time(), sep = " "))
+# - GENERAL TIMING:
+generalT1 <- Sys.time()
 
 ### --- Set proxy
 Sys.setenv(
@@ -127,7 +129,9 @@ for (i in 1:length(wdcmGeoItems$item)) {
     ' }'
   )
   
-  # Run query against WDQS:
+  # - init repeat counter
+  c <- 0
+  
   repeat {
     
     # - run query:
@@ -136,7 +140,7 @@ for (i in 1:length(wdcmGeoItems$item)) {
     # - check query:
     if (res$status_code != 200) {
       # - to runtime Log:
-      print(paste("Server response not 200 for SPARQL category:", i, "; repeating.", sep = ""))
+      print(paste("Server response not 200 for SPARQL category: ", i, "; repeating.", (c <- c + 1),sep = ""))
       rc <- 'error'
     } else {
       print(paste("Parsing now SPARQL category:", i, sep = ""))
@@ -149,60 +153,70 @@ for (i in 1:length(wdcmGeoItems$item)) {
         },
         warning = function(cond) {
           # - return error:
-          print(paste("Parsing now SPARQL category:", i, " failed w. warning; repeating.", sep = ""))
+          print(paste("Parsing now SPARQL category:", i, " failed w. warning; repeating.", (c <- c + 1), sep = ""))
           'error'
         }, 
         error = function(cond) {
           # - return error:
-          print(paste("Parsing now SPARQL category:", i, " failed w. error; repeating.", sep = ""))
+          print(paste("Parsing now SPARQL category:", i, " failed w. error; repeating.", (c <- c + 1), sep = ""))
           'error'
         }
       )
     }
+    
     # - condition:
     if (res$status_code == 200 & class(rc) == 'list') {
+      print("Parsing successful.")
+      
+      # - clean:
+      rm(res); gc()
+      
+      # - extract:
+      item <- rc$results$bindings$item$value
+      coordinate <- rc$results$bindings$coordinate$value
+      label <- rc$results$bindings$itemLabel$value
+      # - as.data.frame:
+      items <- data.frame(item = item,
+                          coordinate = coordinate,
+                          label = label,
+                          stringsAsFactors = F)
+      # - clear:
+      rm(item); rm(coordinate); rm(label); rm(rc); gc()
+      # - keep unique result set:
+      w <- which(duplicated(items$item))
+      if (length(w) > 0) {items <- items[-w, ]}
+      # - clear possible NAs from coordinates
+      w <- which(is.na(items$coordinate) | (items$coordinate == ""))
+      if (length(w) > 0) {items <- items[-w, ]}
+      # - fix items
+      items$item <- gsub("http://www.wikidata.org/entity/", "", items$item, fixed = T)
+      # - fix coordinates (lon, lat)
+      items$coordinate <- gsub("Point(", "", items$coordinate, fixed = T)
+      items$coordinate <- gsub(")", "", items$coordinate, fixed = T)
+      lon <- str_extract(items$coordinate, "^.+\\s")
+      lat <- str_extract(items$coordinate, "\\s.+$")
+      items$coordinate <- NULL
+      items$lon <- lon
+      items$lat <- lat
+      # clear:
+      rm(lon); rm(lat); gc()
+      
+      # store as CSV
+      write_csv(items, path = paste0(wdcmGeoItems$itemLabel[i],"_ItemIDs.csv"))
+      
+      # clear:
+      rm(items); gc()
+      
+      # exit:
       break
     }
+    
+    print("Pause for 10 secs.")
+    Sys.sleep(10)
+    
   }
   
-  # - clean:
   rm(res)
-  
-  # - extract:
-  item <- rc$results$bindings$item$value
-  coordinate <- rc$results$bindings$coordinate$value
-  label <- rc$results$bindings$itemLabel$value
-  # - as.data.frame:
-  items <- data.frame(item = item,
-                      coordinate = coordinate,
-                      label = label,
-                      stringsAsFactors = F)
-  # - clear:
-  rm(item); rm(coordinate); rm(label); rm(rc); gc()
-  # - keep unique result set:
-  w <- which(duplicated(items$item))
-  if (length(w) > 0) {items <- items[-w, ]}
-  # - clear possible NAs from coordinates
-  w <- which(is.na(items$coordinate) | (items$coordinate == ""))
-  if (length(w) > 0) {items <- items[-w, ]}
-  # - fix items
-  items$item <- gsub("http://www.wikidata.org/entity/", "", items$item, fixed = T)
-  # - fix coordinates (lon, lat)
-  items$coordinate <- gsub("Point(", "", items$coordinate, fixed = T)
-  items$coordinate <- gsub(")", "", items$coordinate, fixed = T)
-  lon <- str_extract(items$coordinate, "^.+\\s")
-  lat <- str_extract(items$coordinate, "\\s.+$")
-  items$coordinate <- NULL
-  items$lon <- lon
-  items$lat <- lat
-  # clear:
-  rm(lon); rm(lat); gc()
-  
-  # store as CSV
-  write_csv(items, path = paste0(wdcmGeoItems$itemLabel[i],"_ItemIDs.csv"))
-  
-  # clear:
-  rm(items); gc()
 
 }
 
@@ -407,13 +421,10 @@ if ('WDCM_GeoReport.csv' %in% lF) {
 
 ### --- toLabsGeoReport
 toLabsGeoReport <- data.frame(timeStamp = as.character(Sys.time()),
-                              statbox = "stat1005",
+                              statbox = "stat1007",
                               sqoopbox = "stat1004",
                               stringsAsFactors = F)
 write.csv(toLabsGeoReport, "toLabsGeoReport.csv")
-
-# - to runtime Log:
-print(paste("--- UPDATE RUN COMPLETED ON:", Sys.time(), sep = " "))
 
 ### --- copy reports to /srv/published-datasets/wdcm:
 
@@ -421,4 +432,9 @@ print(paste("--- UPDATE RUN COMPLETED ON:", Sys.time(), sep = " "))
 system(command = 'cp /home/goransm/RScripts/WDCM_R/WDCM_Logs/WDCM_GeoReport.csv /srv/published-datasets/wdcm/', wait = T)
 # - toLabsReport
 system(command = 'cp /home/goransm/RScripts/WDCM_R/WDCM_Logs/toLabsGeoReport.csv /srv/published-datasets/wdcm/', wait = T)
+
+# - GENERAL TIMING:
+generalT2 <- Sys.time()
+# - GENERAL TIMING REPORT:
+print(paste0("FULL WDCM GeoEngine update DONE IN: ", generalT2 - generalT1, "."))
 

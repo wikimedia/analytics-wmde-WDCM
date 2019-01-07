@@ -87,8 +87,9 @@ projectType <- function(projectName) {
 # - to nohup.out
 print(paste("WDCM Process.R update started at: ", Sys.time(), sep = ""))
 
-# - to working directory:
-setwd('/home/goransm/WMDE/WDCM/WDCM_RScripts')
+# - to DataIN directory:
+DataINdir <- '/home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_ETL/'
+setwd(DataINdir)
 
 # - credentials on tools.labsdb
 cred <- readLines('/home/goransm/mySQL_Credentials/replica.my.cnf')
@@ -121,10 +122,6 @@ st <- st[which(grepl("^wdcm2", st$tables)), ]
 ### ---------------------------------------------------------------------------
 ### ---------------------------------------------------------------------------
 
-# - to /home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_DataIN_ClientUsage_v2/
-inputDir <- '/home/goransm/WMDE/WDCM/WDCM_DataIN/WDCM_DataIN_ClientUsage_v2/'
-setwd(inputDir)
-
 ### ---------------------------------------------------------------------------
 ### --- wdcm2_project
 ### ---------------------------------------------------------------------------
@@ -135,6 +132,8 @@ print(paste("wdcm2_project: ", Sys.time(), sep = ""))
 # - load wdcm_project.tsv as data.frame
 wdcm2_project <- fread('wdcm_project.csv', data.table = F)
 wdcm2_project$V1 <- NULL
+# - add projecttype
+wdcm2_project$projectype <- sapply(wdcm2_project$eu_project, projectType)
 # - check whether wdcm2_project table exists:
 checkTable <- which(st %in% "wdcm2_project")
 # - DROP wdcm2_project if it exists
@@ -173,7 +172,7 @@ rm(wdcm2_project); gc()
 # - to nohup.out
 print(paste("wdcm2_category: ", Sys.time(), sep = ""))
 
-# - load wdcm_category.tsv as data.frame
+# - load wdcm_category.csv as data.frame
 wdcm2_category <- fread('wdcm_category.csv', data.table = F)
 wdcm2_category$V1 <- NULL
 # - check whether wdcm2_category table exists:
@@ -217,9 +216,7 @@ print(paste("wdcm2_project_category: ", Sys.time(), sep = ""))
 # - load wdcm_category.tsv as data.frame
 wdcm2_project_category <- fread('wdcm_project_category.csv', data.table = F)
 wdcm2_project_category$V1 <- NULL
-### --- FIX THIS (!!!)
-colnames(wdcm2_project_category)[4] <- 'projecttype'
-### --- FIX THIS (!!!)
+wdcm2_project_category$projecttype <- projectType(wdcm2_project_category$eu_project)
 # - check whether wdcm2_project_category table exists:
 checkTable <- which(st %in% "wdcm2_project_category")
 # - DROP wdcm2_project_category if it exists
@@ -281,10 +278,11 @@ dbDisconnect(con)
 # - to nohup.out
 print(paste("wdcm2_project_item100: ", Sys.time(), sep = ""))
 
-# - load wdcm_project_item100.tsv as data.frame
+# - load wdcm_project_item100.csv as data.frame
 wdcm2_project_item100 <- fread('wdcm_project_item100.csv', data.table = F)
 wdcm2_project_item100$V1 <- NULL
-wdcm2_project_item100$t.row <- NULL
+wdcm2_project_item100$row <- NULL
+wdcm2_project_item100$projecttype <- projectType(wdcm2_project_item100$eu_project)
 colnames(wdcm2_project_item100) <- c('eu_project', 'eu_entity_id', 'eu_count', 'projecttype')
 # - check whether wdcm2_project_item100 table exists:
 checkTable <- which(st %in% "wdcm2_project_item100")
@@ -341,7 +339,10 @@ repeat {
 rm(res); rm(rc); gc()
 iLabs <- rbindlist(iLabs)
 # - insert labels to wdcm2_project_item100 + 
-wdcm2_project_item100 <- left_join(wdcm2_project_item100, iLabs, by = 'eu_entity_id')
+wdcm2_project_item100 <- left_join(wdcm2_project_item100, 
+                                   iLabs, 
+                                   by = 'eu_entity_id')
+
 # - recognize missing English labels and replace w. the respective eu_entity_id value
 wdcm2_project_item100$eu_label[is.na(wdcm2_project_item100$eu_label)] <- 
   wdcm2_project_item100$eu_entity_id[is.na(wdcm2_project_item100$eu_label)]
@@ -395,9 +396,9 @@ print(paste("wdcm2_project_category_item100: ", Sys.time(), sep = ""))
 
 # - load wdcm_project_category_item100.tsv as data.frame
 wdcm2_project_category_item100 <- fread('wdcm_project_category_item100.csv', data.table = F)
-wdcm2_project_category_item100$V1 <- NULL
-wdcm2_project_category_item100$t.row <- NULL
-colnames(wdcm2_project_category_item100) <- c('eu_project', 'category', 'eu_entity_id', 'eu_count', 'projecttype')
+wdcm2_project_category_item100 <- select(wdcm2_project_category_item100, 
+                                         eu_project, category, eu_entity_id, eu_count)
+wdcm2_project_category_item100$projecttype <- projectType(wdcm2_project_category_item100$eu_project)
 # - check whether wdcm2_project_item100 table exists:
 checkTable <- which(st %in% "wdcm2_project_category_item100")
 # - DROP wdcm2_project_category if it exists
@@ -549,19 +550,15 @@ dbClearResult(res)
 dbDisconnect(con)
 # - populate wdcm2_category_item100
 itemFiles <- list.files()
-itemFiles <- itemFiles[grepl("^wdcm_item", itemFiles)]
+itemFiles <- itemFiles[grepl("^wdcm_category_item", itemFiles)]
 for (i in 1:length(itemFiles)) {
   # - load categoryFile[i].tsv as data.frame
   categoryName <- strsplit(itemFiles[i], ".", fixed = T)[[1]][1]
-  categoryName <- strsplit(categoryName, "_", fixed = T)[[1]][3]
+  categoryName <- strsplit(categoryName, "_", fixed = T)[[1]][4]
   categoryName <- gsub("([[:lower:]])([[:upper:]])", "\\1 \\2", categoryName)
-  ### --- FIX THIS (!!!)
-  if (categoryName == "Workof Art") {
-    categoryName <- "Work of Art"
-  }
-  ### --- FIX ABOVE (!!!)
   categoryFile <- fread(itemFiles[i], nrows = 100)
   categoryFile$category <- categoryName
+  categoryFile$V1 <- NULL
   # - get item labels for categoryFile[i]
   APIprefix <- 'https://www.wikidata.org/w/api.php?action=wbgetentities&'
   # - compose API call
@@ -861,6 +858,7 @@ lF <- lF[grepl("wdcm2_itemtopic_", lF, fixed = T)]
 for (i in 1:length(lF)) {
   # - check whether the current wdcm2_itemtopic_ table exists:
   tName <- gsub(".csv", "", lF[i])
+  tName <- gsub(" ", "", tName)
   checkTable <- which(st %in% tName)
   # - DROP current wdcm2_itemtopic_ table if it exists
   if (length(checkTable) == 1) {
@@ -938,24 +936,27 @@ for (i in 1:length(lF)) {
   dbDisconnect(con)
 }
 
-### --- copy toLabsReport.csv to all WDCM Dashboards:
+### --- copy WDCM_MainReport.csv to all WDCM Dashboards:
 # - to nohup.out
 print(paste("copy toLabsReport.csv to all WDCM Dashboards: ", Sys.time(), sep = ""))
 
 # - Overview Dashboard Update File
-system('sudo cp /home/goransm/WMDE/WDCM/WDCM_SystemUpdate/toLabsReport.csv /srv/shiny-server/WDCM_OverviewDashboard/update/', 
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_SystemUpdate/WDCM_MainReport.csv /srv/shiny-server/WDCM_OverviewDashboard/update/', 
        wait = F)
 # - Usage Dashboard Update File
-system('sudo cp /home/goransm/WMDE/WDCM/WDCM_SystemUpdate/toLabsReport.csv /srv/shiny-server/WDCM_UsageDashboard/update/', 
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_SystemUpdate/WDCM_MainReport.csv /srv/shiny-server/WDCM_UsageDashboard/update/', 
        wait = F)
 # - Semantics Dashboard Update File
-system('sudo cp /home/goransm/WMDE/WDCM/WDCM_SystemUpdate/toLabsReport.csv /srv/shiny-server/WDCM_SemanticsDashboard/update/', 
+system('sudo cp /home/goransm/WMDE/WDCM/WDCM_SystemUpdate/WDCM_MainReport.csv /srv/shiny-server/WDCM_SemanticsDashboard/update/', 
        wait = F)
-# - Semantics Dashboard Data Sets
+
+
+### --- Semantics Dashboard Data Sets
 lF <- list.files()
 lF <- lF[grepl("wdcm2_projecttopic_", lF, fixed = T)]
+lF <- gsub(" ", "\\ ", lF, fixed = T)
 for (i in 1:length(lF)) {
-  system(paste('sudo cp ', inputDir, 
+  system(paste('sudo cp ', DataINdir, 
                lF[i], 
                ' /srv/shiny-server/WDCM_SemanticsDashboard/data/',
                sep = ''),
@@ -963,8 +964,9 @@ for (i in 1:length(lF)) {
 }
 lF <- list.files()
 lF <- lF[grepl("wdcm2_visNetworkNodes_project", lF, fixed = T)]
+lF <- gsub(" ", "\\ ", lF, fixed = T)
 for (i in 1:length(lF)) {
-  system(paste('sudo cp ', inputDir, 
+  system(paste('sudo cp ', DataINdir, 
                lF[i], 
                ' /srv/shiny-server/WDCM_SemanticsDashboard/data/',
                sep = ''),
@@ -972,8 +974,9 @@ for (i in 1:length(lF)) {
 }
 lF <- list.files()
 lF <- lF[grepl("wdcm2_visNetworkEdges_project", lF, fixed = T)]
+lF <- gsub(" ", "\\ ", lF, fixed = T)
 for (i in 1:length(lF)) {
-  system(paste('sudo cp ', inputDir, 
+  system(paste('sudo cp ', DataINdir, 
                lF[i], 
                ' /srv/shiny-server/WDCM_SemanticsDashboard/data/',
                sep = ''),

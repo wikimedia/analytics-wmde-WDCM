@@ -56,12 +56,65 @@ import sys
 from itertools import compress
 import datetime
 import xml.etree.ElementTree as ET
+import requests
+import json
+
+
+### --- Constants and functions
+
+# - Wikidata API prefix
+API_prefix = 'https://www.wikidata.org/w/api.php?action=wbgetentities&'
+# - batch_size for Wikidata API calls
+API_batch_size = 50
+
+# - fetchWDlabels function
+def fetchWDlabels(API_prefix, ids, proxy):
+    searchTerms = "|".join(ids)
+    query = API_prefix + 'ids=' + searchTerms + '&' + \
+            'props=labels&languages=en&sitefilter=wikidatawiki&languagefallback=true&format=json'
+    res = requests.get(query, proxies = proxy)
+    res = json.loads(res.text)
+    items = list(res['entities'].keys())
+    labels = list(map(lambda x: res['entities'][x].get('labels'), res['entities']))
+    # - check for the existence of 'labels'
+    presentLabel = [type(i) is dict for i in labels]
+    items = list(compress(items, presentLabel))
+    labels = list(compress(labels, presentLabel))
+    # - check for the existence of 'en'
+    labels = list(map(lambda x: x.get('en'), labels))
+    presentLabel = [type(i) is dict for i in labels]
+    items = list(compress(items, presentLabel))
+    labels = list(compress(labels, presentLabel))
+    # - check for the existence of 'value'
+    labels = list(map(lambda x: x.get('value'), labels))
+    presentLabel = [not i == "None" for i in labels]
+    items = list(compress(items, presentLabel))
+    labels = list(compress(labels, presentLabel))
+    # - output
+    return (items, labels)
+
+# - fetchWDlabels_batch function
+def fetchWDlabels_batch(API_prefix, entities, API_batch_size, proxy):
+    # - labels list:
+    labels = []
+    # - found items list:
+    foundItems = []
+    # - cut into batches
+    startIx = np.arange(0, len(entities), API_batch_size)
+    stopIx = startIx + 49
+    stopIx[len(stopIx)-1] = len(entities)
+    # - fetch WD labels batch by batch
+    for i in range(0, len(startIx)):
+        ids = list(entities[startIx[i]:stopIx[i]])
+        out = fetchWDlabels(API_prefix, ids, proxy)
+        foundItems = foundItems + out[0]
+        labels = labels + out[1]
+    return(foundItems, labels)
 
 ### --- start Time
 startTime = datetime.datetime.now()
 # - to runtime log:
 print("WDCM ETL Module start at: " + str(startTime))
-
 
 ### --- parse WDCM parameters
 # - where is the script being run from:
@@ -79,7 +132,14 @@ wdcmOutdir = params['etlDir']
 logDir = params['logDir']
 topNpopularWDIitems = params['topNpopularWDIitems']
 topNpopularCategoryWDItems = params['topNpopularCategoryWDItems']
+itemsDir = params['itemsDir']
 NItemsTFMatrix = params['NItemsTFMatrix']
+http_proxy  = params['http_proxy']
+https_proxy = params['https_proxy']
+proxyDict = {
+              "http"  : http_proxy,
+              "https" : https_proxy,
+            }
 
 ### --- Init Spark
 
@@ -114,13 +174,13 @@ WDCM_MainTableRaw.createTempView("wdcmmain")
 # - description: top 100,000 most popular Wikidata items
 wdcm_item = sqlContext.sql('SELECT eu_entity_id, SUM(eu_count) AS eu_count FROM wdcmmain GROUP BY eu_entity_id \
                                     ORDER BY eu_count DESC LIMIT ' + topNpopularWDIitems)
-wdcm_item.coalesce(1).toPandas().to_csv(wdcmOutdir + "wdcm_topItems.csv", header=True)
+wdcm_item.coalesce(1).toPandas().to_csv(wdcmOutdir + "wdcm_topItems.csv", header=True, index=False)
 
 # - produce: wdcm_project
 # - description: total item usage as sum(eu_count) per project
 wdcm_project = sqlContext.sql('SELECT eu_project, SUM(eu_count) AS eu_count FROM wdcmmain GROUP BY eu_project \
                                     ORDER BY eu_count DESC')
-wdcm_project.coalesce(1).toPandas().to_csv(wdcmOutdir + "wdcm_project.csv", header=True)
+wdcm_project.coalesce(1).toPandas().to_csv(wdcmOutdir + "wdcm_project.csv", header=True, index=False)
 
 # - produce: wdcm_project_item100
 # - description: total item usage as sum(eu_count) per project
@@ -132,17 +192,31 @@ wdcm_project_item100 = WDCM_MainTableRaw.\
 # - coalesce, filter, to Pandas, save
 wdcm_project_item100 = wdcm_project_item100.coalesce(1).toPandas()
 wdcm_project_item100 = wdcm_project_item100.sort_values('eu_count', ascending=False).groupby('eu_project').head(100)
-wdcm_project_item100.to_csv(wdcmOutdir + "wdcm_project_item100.csv", header=True)
+# - fetch item labels for wdcm_project_item100
+labs = fetchWDlabels_batch(API_prefix = API_prefix,
+                           entities = list(set(list(wdcm_project_item100['eu_entity_id']))),
+                           API_batch_size = API_batch_size,
+                           proxy = proxyDict)
+# - join labels to wdcm_project_item100
+labsDict = {'eu_entity_id': pd.Series(labs[0]), 'eu_label': pd.Series(labs[1])}
+labsDF = pd.DataFrame(labsDict)
+wdcm_project_item100 = pd.merge(wdcm_project_item100, labsDF, on='eu_entity_id', how='left')
+# - sort wdcm_project_item100
+wdcm_project_item100 .sort_values(['eu_project', 'eu_entity_id'], ascending=[True, True])
+# - save wdcm_project_item100 as .csv w. labels
+wdcm_project_item100.to_csv(wdcmOutdir + "wdcm_project_item100.csv", header=True, index=False)
 
 # - wdcm analytical tables per category
-itemFiles = os.listdir(path='/home/goransm/PyScripts/WDCM_CollectedItems')
+itemFiles = os.listdir(path=itemsDir)
 for itemFile in itemFiles:
 
     # category name:
     catName = re.sub("-", " ", itemFile.split("_")[0])
 
     # read itemFile: list of items in category
-    items = sqlContext.read.csv(itemFile, header=True)
+    f = "file://" + itemsDir + itemFile
+    f = re.sub(" ", "\\\\ ", f)
+    items = sqlContext.read.csv(f, header=True)
 
     # left.join(newItem, wdcmmain)
     items = items.select("eu_entity_id", "category").join(WDCM_MainTableRaw,
@@ -155,7 +229,19 @@ for itemFile in itemFiles:
 
     wdcm_item_category = items.groupBy("eu_entity_id").sum("eu_count").withColumnRenamed("sum(eu_count)", "eu_count").\
         toPandas().sort_values(by="eu_count", ascending=False).head(int(topNpopularCategoryWDItems))
-    wdcm_item_category.to_csv(wdcmOutdir + fileName, header=True)
+    # - fetch item labels for wdcm_project_item100
+    labs = fetchWDlabels_batch(API_prefix=API_prefix,
+                               entities=list(set(list(wdcm_item_category['eu_entity_id']))),
+                               API_batch_size=API_batch_size,
+                               proxy=proxyDict)
+    # - join labels to wdcm_item_category
+    labsDict = {'eu_entity_id': pd.Series(labs[0]), 'eu_label': pd.Series(labs[1])}
+    labsDF = pd.DataFrame(labsDict)
+    wdcm_item_category= pd.merge(wdcm_item_category, labsDF, on='eu_entity_id', how='left')
+    # - sort wdcm_item_category
+    wdcm_item_category.sort_values('eu_count', ascending=False)
+    # - save wdcm_project_item100 as .csv w. labels
+    wdcm_item_category.to_csv(wdcmOutdir + fileName, header=True, index=False)
 
     # - Term-Frequency Matrix
     # - filename
@@ -172,7 +258,7 @@ for itemFile in itemFiles:
                                    how='left')
     #- save
     tf_category = tf_category.toPandas()
-    tf_category.to_csv(wdcmOutdir + fileName, header=True)
+    tf_category.to_csv(wdcmOutdir + fileName, header=True, index=False)
     # - delete tf_category
     del tf_category
 
@@ -185,7 +271,7 @@ for itemFile in itemFiles:
 
     wdcm_category = items.groupBy("category").sum("eu_count").withColumnRenamed("sum(eu_count)", "eu_count").\
         toPandas()
-    wdcm_category.to_csv(tempDir + fileName, header=True)
+    wdcm_category.to_csv(tempDir + fileName, header=True, index=False)
 
     # delete wdcm_category
     del wdcm_category
@@ -197,7 +283,7 @@ for itemFile in itemFiles:
     wdcm_project_category = items.groupBy("category", "eu_project").sum("eu_count").\
         withColumnRenamed("sum(eu_count)", "eu_count").\
         toPandas().sort_values(by="eu_count", ascending=False)
-    wdcm_project_category.to_csv(tempDir + fileName, header=True)
+    wdcm_project_category.to_csv(tempDir + fileName, header=True, index=False)
 
     # delete wdcm_project_category
     del wdcm_project_category
@@ -216,7 +302,19 @@ for itemFile in itemFiles:
     wdcm_project_category_item100 = wdcm_project_category_item100.coalesce(1).toPandas()
     wdcm_project_category_item100 = wdcm_project_category_item100.sort_values('eu_count', ascending=False)\
         .groupby(['eu_project', 'category']).head(100)
-    wdcm_project_category_item100.to_csv(tempDir + fileName, header=True)
+    # - fetch item labels for wdcm_project_category_item100
+    labs = fetchWDlabels_batch(API_prefix=API_prefix,
+                               entities=list(set(list(wdcm_project_category_item100['eu_entity_id']))),
+                               API_batch_size=API_batch_size,
+                               proxy=proxyDict)
+    # - join labels to wdcm_project_category_item100
+    labsDict = {'eu_entity_id': pd.Series(labs[0]), 'eu_label': pd.Series(labs[1])}
+    labsDF = pd.DataFrame(labsDict)
+    wdcm_project_category_item100 = pd.merge(wdcm_project_category_item100, labsDF, on='eu_entity_id', how='left')
+    # - sort wdcm_project_category_item100
+    wdcm_project_category_item100.sort_values('eu_count', ascending=False)
+    # - save wdcm_project_category_item100 as .csv w. labels
+    wdcm_project_category_item100.to_csv(tempDir + fileName, header=True, index=False)
 
     # - delete wdcm_project_category_item100
     del wdcm_project_category_item100
@@ -252,7 +350,7 @@ lF = list(compress(lF, ix))
 df = pd.concat(map(pd.read_csv, map(lambda x: tempDir + x, lF)))
 # - select, sort, and write
 df = df.dropna(axis=0)
-df[['eu_project', 'category', 'eu_count']].to_csv(wdcmOutdir + "wdcm_project_category.csv")
+df[['eu_project', 'category', 'eu_count']].to_csv(wdcmOutdir + "wdcm_project_category.csv", header=True, index=False)
 
 # - OUTPUT: wdcm_project_category_item100.csv
 lF = os.listdir(path=tempDir)
@@ -267,7 +365,7 @@ df = pd.concat(\
         map(lambda x: tempDir + x, lF)))
 # - select, sort, and write
 df = df.dropna(axis=0)
-df.to_csv(wdcmOutdir + "wdcm_project_category_item100.csv")
+df.to_csv(wdcmOutdir + "wdcm_project_category_item100.csv", header=True, index=False)
 
 ### --- end Time
 endTime = datetime.datetime.now()

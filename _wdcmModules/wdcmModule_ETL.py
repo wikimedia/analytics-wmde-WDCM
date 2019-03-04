@@ -1,9 +1,11 @@
 
 ### ---------------------------------------------------------------------------
 ### --- wdcmModule_ETL.py
-### --- Author: Goran S. Milovanovic, Data Analyst, WMDE
+### --- Authors: Goran S. Milovanovic, Data Scientist, WMDE
 ### --- Developed under the contract between Goran Milovanovic PR Data Kolektiv
-### --- and WMDE.
+### --- and WMDE;
+### --- Andrew Otto, Senior Systems Engineer — Operations/Analytics,
+### --- Wikimedia Foundation.
 ### --- Contact: goran.milovanovic_ext@wikimedia.de
 ### --- January 2019.
 ### ---------------------------------------------------------------------------
@@ -46,9 +48,11 @@ import pyspark
 from pyspark.sql import SparkSession
 from pyspark.sql.window import Window
 from pyspark.sql.functions import rank, col
+from pyspark import SparkFiles
 import numpy as np
 import pandas as pd
 import os
+import subprocess
 import gc
 import re
 from sys import stdin
@@ -111,6 +115,16 @@ def fetchWDlabels_batch(API_prefix, entities, API_batch_size, proxy):
         labels = labels + out[1]
     return(foundItems, labels)
 
+# - list files to work with hdfs
+def list_files(dir):
+    if (dir.startswith('hdfs://')):
+        # use hdfs -stat %n to just get file names in dir/*
+        cmd = ['hdfs', 'dfs', '-stat', '%n', dir + "/*"]
+        files = [str(f, 'utf-8') for f in subprocess.check_output(cmd).split(b"\n")]
+    else:
+        files = os.listdir(path=dir)
+    return [os.path.join(dir, f) for f in files]
+
 ### --- start Time
 startTime = datetime.datetime.now()
 # - to runtime log:
@@ -136,6 +150,8 @@ itemsDir = params['itemsDir']
 NItemsTFMatrix = params['NItemsTFMatrix']
 http_proxy  = params['http_proxy']
 https_proxy = params['https_proxy']
+hdfsDir_WDCMCollectedItemsDir = params['hdfsCollectedItemsDir']
+hdfsPATH_WDCMCollectedItems = params['hdfsPATH_WDCMCollectedItems']
 proxyDict = {
               "http"  : http_proxy,
               "https" : https_proxy,
@@ -207,19 +223,25 @@ wdcm_project_item100 .sort_values(['eu_project', 'eu_entity_id'], ascending=[Tru
 wdcm_project_item100.to_csv(wdcmOutdir + "wdcm_project_item100.csv", header=True, index=False)
 
 # - wdcm analytical tables per category
-itemFiles = os.listdir(path=itemsDir)
+itemFiles = list_files(hdfsPATH_WDCMCollectedItems)
 for itemFile in itemFiles:
 
     # category name:
-    catName = re.sub("-", " ", itemFile.split("_")[0])
+    catName = itemFile.split("/")[len(itemFile.split("/"))-1]
+    catName = catName.split(".")[0]
+    catName = catName.split("_")[0]
+    catName = re.sub("-", " ", catName)
 
     # read itemFile: list of items in category
-    f = "file://" + itemsDir + itemFile
-    f = re.sub(" ", "\\\\ ", f)
-    items = sqlContext.read.csv(f, header=True)
+    items = sqlContext.read.csv(itemFile, header=True)
+    # fix items format:
+    if (len(items.columns) == 3):
+        items = items.drop("_c0")
+        items = items.withColumnRenamed("item.item", "item")
+        items = items.withColumnRenamed("item.category", "category")
 
     # left.join(newItem, wdcmmain)
-    items = items.select("eu_entity_id", "category").join(WDCM_MainTableRaw,
+    items = items.withColumnRenamed("item", "eu_entity_id").join(WDCM_MainTableRaw,
                                                           ["eu_entity_id"],
                                                           how='left')
 
@@ -227,7 +249,8 @@ for itemFile in itemFiles:
     # - description: total sum of the top 10,000 entities usage from a category, per entity, one file per category
     fileName = "wdcm_category_item_" + catName + '.csv'
 
-    wdcm_item_category = items.groupBy("eu_entity_id").sum("eu_count").withColumnRenamed("sum(eu_count)", "eu_count").\
+    wdcm_item_category = items.select(col('eu_entity_id'), col('eu_count')).groupBy("eu_entity_id").sum("eu_count").\
+        withColumnRenamed("sum(eu_count)", "eu_count").\
         toPandas().sort_values(by="eu_count", ascending=False).head(int(topNpopularCategoryWDItems))
     # - fetch item labels for wdcm_project_item100
     labs = fetchWDlabels_batch(API_prefix=API_prefix,
@@ -237,7 +260,7 @@ for itemFile in itemFiles:
     # - join labels to wdcm_item_category
     labsDict = {'eu_entity_id': pd.Series(labs[0]), 'eu_label': pd.Series(labs[1])}
     labsDF = pd.DataFrame(labsDict)
-    wdcm_item_category= pd.merge(wdcm_item_category, labsDF, on='eu_entity_id', how='left')
+    wdcm_item_category = pd.merge(wdcm_item_category, labsDF, on='eu_entity_id', how='left')
     # - sort wdcm_item_category
     wdcm_item_category.sort_values('eu_count', ascending=False)
     # - save wdcm_project_item100 as .csv w. labels
@@ -247,8 +270,10 @@ for itemFile in itemFiles:
     # - filename
     fileName = "tfMatrix_" + catName + '.csv'
     # - drop aggregate 'eu_count' from wdcm_item_category
-    tf_category = wdcm_item_category.drop(['eu_count'], axis=1)
-    # - keep only top 1000 frequently used items
+    tf_category = wdcm_item_category.drop('eu_count', axis=1)
+    # - remove labels to create Spark dataframe
+    tf_category = tf_category.drop('eu_label', axis=1)
+    # - keep only top NItemsTFMatrix frequently used items
     tf_category = tf_category.head(int(NItemsTFMatrix))
     # - convert to Spark dataframe
     tf_category = sqlContext.createDataFrame(tf_category)
@@ -258,10 +283,13 @@ for itemFile in itemFiles:
                                    how='left')
     #- save
     tf_category = tf_category.toPandas()
+    # - enter labels
+    tf_category = pd.merge(tf_category, labsDF, on='eu_entity_id', how='left')
+    # - to.csv
     tf_category.to_csv(wdcmOutdir + fileName, header=True, index=False)
+
     # - delete tf_category
     del tf_category
-
     # delete wdcm_item_category
     del wdcm_item_category
 

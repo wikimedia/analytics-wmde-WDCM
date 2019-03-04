@@ -136,7 +136,9 @@ for (i in 1:length(itemFiles)) {
   categoryFile <- fread(itemFiles[i])
   categoryFile$V1 <- NULL
   # -filter for nItems in categoryFile (the top lda_NItems frequently used items)
-  categoryFile <- filter(categoryFile, eu_entity_id %in% nItems)
+  categoryFile <- categoryFile %>%
+    dplyr::select(eu_entity_id, eu_project, eu_count) %>% 
+    dplyr::filter(eu_entity_id %in% nItems)
   categoryFile <- spread(categoryFile,
                          key = eu_entity_id,
                          value = eu_count,

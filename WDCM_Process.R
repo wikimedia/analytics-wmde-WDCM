@@ -56,9 +56,6 @@ library(snowfall)
 library(maptpx)
 library(Rtsne)
 
-# - mysql --defaults-file=/home/goransm/mySQL_Credentials/replica.my.cnf -h tools.labsdb u16664__wdcm_p
-# - database: u16664__wdcm_p
-
 ### --- functions
 
 # - projectType() to determine project type
@@ -303,6 +300,9 @@ if (length(checkTable) == 1) {
 APIprefix <- 'https://www.wikidata.org/w/api.php?action=wbgetentities&'
 # - compose API call
 items <- unique(wdcm2_project_item100$eu_entity_id)
+
+items <- unique(wdcmProjectItem100$eu_entity_id)
+
 # - fetch item labels in batches (max values = 50, MediaWiki API constraint)
 c <- 0
 ixStart <- 1

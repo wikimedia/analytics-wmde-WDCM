@@ -96,6 +96,9 @@ itemsDir <- params$general$itemsDir
 structureDir <- params$general$structureDir
 # - production published-datasets:
 dataDir <- params$general$publicDir
+# - hdfs CollectedItems dir
+hdfsDir_WDCMCollectedItemsDir <- params$general$hdfsCollectedItemsDir
+
 
 ### --- Read WDCM_Ontology
 # - to runtime Log:
@@ -236,6 +239,7 @@ for (i in 1:length(wdcmOntology$CategoryItems)) {
     itemsOut <- itemsOut[w]
     
     # store as CSV
+    itemsOut$category <- wdcmOntology$Category[i]
     filename <- paste0(wdcmOntology$Category[i],"_ItemIDs.csv")
     setwd(itemsDir)
     write_csv(itemsOut, filename)
@@ -335,6 +339,17 @@ if ('WDCM_MainReport.csv' %in% lF) {
                           stringsAsFactors = F)
   write.csv(newReport, 'WDCM_MainReport.csv')
 }
+
+### --- Copy to hdfs
+# - delete existing files
+hdfsC <- system(command = paste0('hdfs dfs -rmr ',
+                                 hdfsDir_WDCMCollectedItemsDir),
+                wait = T)
+# - copy:
+hdfsC <- system(command = paste0('hdfs dfs -put ',
+                                 itemsDir, " ",
+                                 hdfsDir_WDCMCollectedItemsDir),
+                wait = T)
 
 # - GENERAL TIMING:
 generalT2 <- Sys.time()

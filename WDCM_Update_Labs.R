@@ -163,7 +163,7 @@ if (tLoc < tProd) {
 
   ### --- download ETL outputs:
     
-  # - list files:
+  # - list ML files:
   url <- params$WDCM_main$remoteETLdir
   page <- as.character(GET(url))
   links <- str_extract_all(page, "<a href=.+>.+</a>")

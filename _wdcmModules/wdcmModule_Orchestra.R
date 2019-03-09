@@ -70,6 +70,7 @@ itemsDir <- params$general$itemsDir
 structureDir <- params$general$structureDir
 etlDir <- params$general$etlDir
 mlDir <- params$general$mlDir
+tempDir <- params$general$tempDir
 # - production published-datasets:
 dataDir <- params$general$publicDir
 # - spark2-submit parameters:
@@ -127,6 +128,14 @@ system(command = paste0('export USER=goransm && nice -10 Rscript ',
 # - toRuntime Log:
 print("Log: RUN wdcmModule_ETL.py")
 
+# - clean etlDir, mlDir, tempDir
+setwd(etlDir)
+file.remove(list.files())
+setwd(mlDir)
+file.remove(list.files())
+setwd(tempDir)
+file.remove(list.files())
+
 system(command = paste0('export USER=goransm && nice -10 spark2-submit ', 
                         sparkMaster, ' ',
                         sparkDeployMode, ' ', 
@@ -153,7 +162,7 @@ system(command = paste0('export USER=goransm && nice -10 Rscript  ',
 
 
 ### --------------------------------------------------
-### --- copy outputs to public directory:
+### --- copy ETL/ML outputs to public directory:
 ### --------------------------------------------------
 
 # - toRuntime log:

@@ -144,6 +144,7 @@ params = dict(zip(k, v))
 tempDir = params['tempDir']
 wdcmOutdir = params['etlDir']
 logDir = params['logDir']
+publicDir = params['publicDir']
 topNpopularWDIitems = params['topNpopularWDIitems']
 topNpopularCategoryWDItems = params['topNpopularCategoryWDItems']
 itemsDir = params['itemsDir']
@@ -224,6 +225,7 @@ wdcm_project_item100.to_csv(wdcmOutdir + "wdcm_project_item100.csv", header=True
 
 # - wdcm analytical tables per category
 itemFiles = list_files(hdfsPATH_WDCMCollectedItems)
+itemFiles = itemFiles[0:-1]
 for itemFile in itemFiles:
 
     # category name:
@@ -246,7 +248,8 @@ for itemFile in itemFiles:
                                                           how='left')
 
     # - produce: wdcm_item_category_
-    # - description: total sum of the top 10,000 entities usage from a category, per entity, one file per category
+    # - description: total usage of the top topNpopularCategoryWDItems entities usage from a category,
+    # - per entity, one file per category
     fileName = "wdcm_category_item_" + catName + '.csv'
 
     wdcm_item_category = items.select(col('eu_entity_id'), col('eu_count')).groupBy("eu_entity_id").sum("eu_count").\
@@ -293,9 +296,9 @@ for itemFile in itemFiles:
     # delete wdcm_item_category
     del wdcm_item_category
 
-    # - produce: wdcm_category
+    # - produce: wdcm_category_sum_*
     # - description: sum(eu_count) for the category, one file per category
-    fileName = "wdcm_category_" + catName + '.csv'
+    fileName = "wdcm_category_sum_" + catName + '.csv'
 
     wdcm_category = items.groupBy("category").sum("eu_count").withColumnRenamed("sum(eu_count)", "eu_count").\
         toPandas()
@@ -360,12 +363,26 @@ print("Total update time: " + str(endTime - startTime))
 
 # - OUTPUT: wdcm_category.csv
 lF = os.listdir(path=tempDir)
-ix = [bool(re.search("^wdcm_category_", i)) for i in lF]
+ix = [bool(re.search("^wdcm_category_sum_", i)) for i in lF]
 lF = list(compress(lF, ix))
 # read files
 df = pd.concat(map(pd.read_csv, map(lambda x: tempDir + x, lF)))
 # - select, sort, and write
-df[['category', 'eu_count']].sort_values('eu_count', ascending=False).to_csv(wdcmOutdir + "wdcm_category.csv")
+df[['category', 'eu_count']].sort_values('eu_count', ascending=False)\
+    .to_csv(wdcmOutdir + "wdcm_category.csv", index=False)
+
+# - OUTPUT: wdcm_category_item.csv
+lF = os.listdir(path = publicDir + 'etl/')
+ix = [bool(re.search("^wdcm_category_item_", i)) for i in lF]
+lF = list(compress(lF, ix))
+catNames = list(map(lambda x: x.split('_')[len(x.split('_'))-1], lF))
+catNames = list(map(lambda x: x.split('.')[0], catNames))
+catNames = np.repeat(catNames, 100)
+# read files
+df = pd.concat(map(lambda p: pd.read_csv(p, nrows=100), map(lambda x: publicDir + 'etl/' + x, lF)))
+df['category'] = catNames
+# - select, sort, and write
+df.to_csv(wdcmOutdir + "wdcm_category_item.csv", index=False)
 
 # - OUTPUT: wdcm_project_category.csv
 lF = os.listdir(path=tempDir)

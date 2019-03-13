@@ -109,6 +109,7 @@ logDir <- params$general$logDir
 itemsDir <- params$general$itemsDir
 structureDir <- params$general$structureDir
 etlDir <- params$general$etlDir
+outDir <- params$general$mlDir
 # - production published-datasets:
 dataDir <- params$general$publicDir
 
@@ -164,7 +165,6 @@ for (i in 1:length(itemFiles)) {
 ### ----------------------------------------------
 ### --- to nohup.out
 # - to runtime Log:
-outDir <- params$general$mlDir
 print("STEP: Semantic Modeling Phase: LDA estimation")
 for (i in 1:length(itemFiles)) {
   
@@ -202,7 +202,7 @@ for (i in 1:length(itemFiles)) {
                                       maptpx::topics(counts = itemCat,
                                                      K = x, bf = T,
                                                      shape = NULL, initopics = NULL,
-                                                     tol = .01, kill = 0,
+                                                     tol = .02, kill = 0,
                                                      ord = TRUE, verb = 0)
                                     }
     )
@@ -344,32 +344,58 @@ for (i in 1:length(projectFiles)) {
   rm(projectTopics); rm(projectDist); rm(nodes); rm(edges); gc()
 }
 
-### --------------------------------------------------
-### --- log ML:
-### --------------------------------------------------
-# - to runtime Log:
-print("--- LOG: Collect_Items step completed.")
-# - set log dir:
-setwd(logDir)
-# - write to WDCM main reporting file:
-lF <- list.files()
-if ('WDCM_MainReport.csv' %in% lF) {
-  mainReport <- read.csv('WDCM_MainReport.csv',
-                         header = T,
-                         row.names = 1,
-                         check.names = F,
-                         stringsAsFactors = F)
-  newReport <- data.frame(Step = 'ML',
-                          Time = as.character(Sys.time()),
-                          stringsAsFactors = F)
-  mainReport <- rbind(mainReport, newReport)
-  write.csv(mainReport, 'WDCM_MainReport.csv')
-} else {
-  newReport <- data.frame(Step = 'ML',
-                          Time = as.character(Sys.time()),
-                          stringsAsFactors = F)
-  write.csv(newReport, 'WDCM_MainReport.csv')
-}
+### --- wdcm2_project_category_2dmap
+### --- used on: Overview Dashboard
+
+# - fetch wdcm2_project_category:
+# - wrangle wdcm2_project_category for t-SNE:
+setwd(etlDir)
+tsneData <- read.csv('wdcm_project_category.csv', 
+                     header = T,
+                     check.names = F,
+                     stringsAsFactors = F)
+tsneData <- spread(tsneData,
+                   key = category,
+                   value = eu_count, 
+                   fill = 0)
+rownames(tsneData) <- tsneData$eu_project
+tsneData$eu_project <- NULL
+tsneData <- as.matrix(dist(tsneData, method = "euclidean"))
+projects <- rownames(tsneData)
+# - t-SNE 2D reduction:
+tsneData <- Rtsne(tsneData, theta = .5, is_distance = T)
+tsneData <- as.data.frame(tsneData$Y)
+tsneData$projects <- projects
+tsneData$projecttype <- projectType(tsneData$projects)
+colnames(tsneData)[1:2] <- c('D1', 'D2')
+setwd(outDir)
+write.csv(tsneData, 'wdcm_project_category_2dmap.csv')
+
+### --- wdcm2_category_project_2dmap
+### --- used on: Overview Dashboard
+
+# - fetch wdcm2_project_category:
+# - wrangle wdcm2_project_category for t-SNE:
+setwd(etlDir)
+tsneData <- read.csv('wdcm_project_category.csv', 
+                     header = T,
+                     check.names = F,
+                     stringsAsFactors = F)
+tsneData <- spread(tsneData,
+                   key = category,
+                   value = eu_count, 
+                   fill = 0)
+rownames(tsneData) <- tsneData$eu_project
+tsneData$eu_project <- NULL
+tsneData <- as.matrix(dist(t(tsneData), method = "euclidean"))
+category <- rownames(tsneData)
+# - t-SNE 2D reduction:
+tsneData <- Rtsne(tsneData, theta = .5, is_distance = T, perplexity = 4)
+tsneData <- as.data.frame(tsneData$Y)
+tsneData$category <- category
+colnames(tsneData)[1:2] <- c('D1', 'D2')
+setwd(outDir)
+write.csv(tsneData, 'wdcm2_category_project_2dmap.csv')
 
 # - GENERAL TIMING:
 generalT2 <- Sys.time()

@@ -148,6 +148,33 @@ system(command = paste0('export USER=goransm && nice -10 spark2-submit ',
        wait = T)
 
 ### --------------------------------------------------
+### --- log ETL:
+### --------------------------------------------------
+# - to runtime Log:
+print("--- LOG: ETL step completed.")
+# - set log dir:
+setwd(logDir)
+# - write to WDCM main reporting file:
+lF <- list.files()
+if ('WDCM_MainReport.csv' %in% lF) {
+  mainReport <- read.csv('WDCM_MainReport.csv',
+                         header = T,
+                         row.names = 1,
+                         check.names = F,
+                         stringsAsFactors = F)
+  newReport <- data.frame(Step = 'ETL',
+                          Time = as.character(Sys.time()),
+                          stringsAsFactors = F)
+  mainReport <- rbind(mainReport, newReport)
+  write.csv(mainReport, 'WDCM_MainReport.csv')
+} else {
+  newReport <- data.frame(Step = 'ETL',
+                          Time = as.character(Sys.time()),
+                          stringsAsFactors = F)
+  write.csv(newReport, 'WDCM_MainReport.csv')
+}
+
+### --------------------------------------------------
 ### --- Run wdcmModule_ML.R
 ### --------------------------------------------------
 
@@ -160,6 +187,32 @@ system(command = paste0('export USER=goransm && nice -10 Rscript  ',
                         ),
        wait = T)
 
+### --------------------------------------------------
+### --- log ML:
+### --------------------------------------------------
+# - to runtime Log:
+print("--- LOG: ML step completed.")
+# - set log dir:
+setwd(logDir)
+# - write to WDCM main reporting file:
+lF <- list.files()
+if ('WDCM_MainReport.csv' %in% lF) {
+  mainReport <- read.csv('WDCM_MainReport.csv',
+                         header = T,
+                         row.names = 1,
+                         check.names = F,
+                         stringsAsFactors = F)
+  newReport <- data.frame(Step = 'ML',
+                          Time = as.character(Sys.time()),
+                          stringsAsFactors = F)
+  mainReport <- rbind(mainReport, newReport)
+  write.csv(mainReport, 'WDCM_MainReport.csv')
+} else {
+  newReport <- data.frame(Step = 'ML',
+                          Time = as.character(Sys.time()),
+                          stringsAsFactors = F)
+  write.csv(newReport, 'WDCM_MainReport.csv')
+}
 
 ### --------------------------------------------------
 ### --- copy ETL/ML outputs to public directory:

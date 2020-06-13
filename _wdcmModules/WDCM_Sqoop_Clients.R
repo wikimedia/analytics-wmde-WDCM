@@ -1,9 +1,11 @@
 #!/usr/bin/env Rscript
 
 ### -----------------------------------------------------------------
-### --- Script: WDCM_Sqoop_Clients.R, v. Beta 0.1
+### --- Script: WDCM_Sqoop_Clients.R
+### --- Version 1.0.0
 ### --- Author: Dan Andreescu, Software Engineer, WMF (Sqoop, HiveQL)
 ### --- Author: Goran S. Milovanovic, Data Analyst, WMDE (R code)
+### --- June 2020.
 ### --- Developed under the contract between Goran Milovanovic PR Data Kolektiv 
 ### --- and WMDE.
 ### --- Contact: goran.milovanovic_ext@wikimedia.de
@@ -20,26 +22,20 @@
 ### --- directory: wdcmsqoop
 ### --- table: wdcm_clients_wb_entity_usage
 ### -----------------------------------------------------------------
-### --- RUN:
-### --- nohup Rscript /home/goransm/RScripts/WDCM_R/WDCM_Sqoop_Clients.R &
-### -----------------------------------------------------------------
 
 ### -----------------------------------------------------------------
 ### --- GPL v2
-# This file is part of Wikidata Concepts Monitor (WDCM)
-# 
-# WDCM is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 2 of the License, or
-# (at your option) any later version.
-# 
-# WDCM is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-# 
-# You should have received a copy of the GNU General Public License
-# along with WDCM. If not, see <http://www.gnu.org/licenses/>.
+### --- This file is part of Wikidata Concepts Monitor (WDCM)
+### --- WDCM is free software: you can redistribute it and/or modify
+### --- it under the terms of the GNU General Public License as published by
+### --- the Free Software Foundation, either version 2 of the License, or
+### --- (at your option) any later version.
+### --- WDCM is distributed in the hope that it will be useful,
+### --- but WITHOUT ANY WARRANTY; without even the implied warranty of
+### --- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+### --- GNU General Public License for more details.
+### --- You should have received a copy of the GNU General Public License
+### --- along with WDCM. If not, see <http://www.gnu.org/licenses/>.
 ### -----------------------------------------------------------------
 
 ### --- Setup
@@ -103,7 +99,9 @@ for (i in 1:length(shards)) {
                          paste0("shardTables_", i, ".tsv"))
   system(command = mySqlCommand, 
          wait = TRUE)
+  
   shardTables <- fread(paste0("shardTables_", i, ".tsv"), sep = '\t')
+  
   ### --- select client projects to sqoop from a shard
   wClients <- which(grepl("wiki$|books$|voyage$|source$|quote$|wiktionary$|news$|media$", 
                           shardTables$Database))
@@ -168,19 +166,22 @@ for (i in 1:length(shards)) {
             # - drop wdcm_clients_wb_entity_usage if this is the first entry
             if (NSqoop == 1) {
               hiveCommand <- '"USE goransm; DROP TABLE IF EXISTS wdcm_clients_wb_entity_usage;"'
-              hiveCommand <- paste("/usr/local/bin/beeline --silent -e ", hiveCommand, sep = "")
+              hiveCommand <- paste("sudo -u analytics-privatedata kerberos-run-command analytics-privatedata beeline --silent -e ", 
+                                   hiveCommand, sep = "")
               system(command = hiveCommand, wait = TRUE)
               # -  delete files for EXTERNAL Hive table from /user/goransm/wdcmsqoop (hdfs path)
-              system(command = 'hdfs dfs -rm -r /user/goransm/wdcmsqoop', wait = T)
+              system(command = 'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -rm -r /tmp/wmde/analytics/wdcm/wdcmsqoop', 
+                     wait = T)
             }
             
-            # - make EXTERNAL Hive tables directory: /user/goransm/wdcmsqoop (hdfs path)
-            system(command = 'hdfs dfs -mkdir /user/goransm/wdcmsqoop', wait = T)
+            # - make EXTERNAL Hive tables directory: /tmp/wmde/analytics/wdcm/wdcmsqoop (hdfs path)
+            system(command = 'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -mkdir /tmp/wmde/analytics/wdcm/wdcmsqoop', 
+                   wait = T)
             # - sqoop command:
             # - /usr/bin/sqoop import --connect jdbc:mysql://s1-analytics-replica.eqiad.wmnet:3311/enwiki
-            sqoopCommand <- paste("/usr/bin/sqoop import --connect jdbc:mysql://", shardHostPort[i], ":331",i, "/", shardTables[j],
+            sqoopCommand <- paste("sudo -u analytics-privatedata kerberos-run-command analytics-privatedata /usr/bin/sqoop import --connect jdbc:mysql://", shardHostPort[i], ":331",i, "/", shardTables[j],
                                   ' --password-file /user/goransm/mysql-analytics-research-client-pw.txt --username research -m 16 ',
-                                  '--query "select * from wbc_entity_usage where \\$CONDITIONS" --split-by eu_row_id --as-avrodatafile --target-dir /user/goransm/wdcmsqoop/wdcm_clients_wb_entity_usage/wiki_db=',
+                                  '--query "select * from wbc_entity_usage where \\$CONDITIONS" --split-by eu_row_id --as-avrodatafile --target-dir /tmp/wmde/analytics/wdcm/wdcmsqoop/wdcm_clients_wb_entity_usage/wiki_db=',
                                   shardTables[j],
                                   ' --delete-target-dir',
                                   sep = "")
@@ -205,13 +206,15 @@ for (i in 1:length(shards)) {
               OUTPUTFORMAT
               'org.apache.hadoop.hive.ql.io.avro.AvroContainerOutputFormat'
               LOCATION
-              'hdfs://analytics-hadoop/user/goransm/wdcmsqoop/wdcm_clients_wb_entity_usage';\""
-              hiveCommand <- paste("/usr/local/bin/beeline --silent -e ", hiveCommand, sep = "")
+              'hdfs://analytics-hadoop/tmp/wmde/analytics/wdcm/wdcmsqoop/wdcm_clients_wb_entity_usage';\""
+              hiveCommand <- paste("sudo -u analytics-privatedata kerberos-run-command analytics-privatedata beeline --silent -e ", 
+                                   hiveCommand, sep = "")
               system(command = hiveCommand, wait = TRUE)
             }
             
             # - repair partitions:
-            system(command = '/usr/local/bin/beeline --silent -e "USE goransm; SET hive.mapred.mode = nonstrict; MSCK REPAIR TABLE wdcm_clients_wb_entity_usage;"', wait = TRUE)
+            system(command = 'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata beeline --silent -e "USE goransm; SET hive.mapred.mode = nonstrict; MSCK REPAIR TABLE wdcm_clients_wb_entity_usage;"', 
+                   wait = TRUE)
             
             # - logFrame
             eTime <- Sys.time()

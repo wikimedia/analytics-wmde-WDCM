@@ -1,8 +1,10 @@
 #!/usr/bin/env Rscript
 
 ### ---------------------------------------------------------------------------
-### --- WDCM EngineBiases, v. Beta 0.1
-### --- Script: WDCM_EngineBiases.R, v. Beta 0.1
+### --- WDCM EngineBiases
+### --- Version 1.0.0
+### --- Script: WDCM_EngineBiases.R
+### --- June 2020.
 ### --- Author: Goran S. Milovanovic, Data Analyst, WMDE
 ### --- Developed under the contract between Goran Milovanovic PR Data Kolektiv
 ### --- and WMDE.
@@ -27,26 +29,17 @@
 ### ---------------------------------------------------------------------------
 ### --- GPL v2
 ### --- This file is part of Wikidata Concepts Monitor (WDCM)
-### ---
 ### --- WDCM is free software: you can redistribute it and/or modify
 ### --- it under the terms of the GNU General Public License as published by
 ### --- the Free Software Foundation, either version 2 of the License, or
 ### --- (at your option) any later version.
-### ---
 ### --- WDCM is distributed in the hope that it will be useful,
 ### --- but WITHOUT ANY WARRANTY; without even the implied warranty of
 ### --- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 ### --- GNU General Public License for more details.
-### ---
 ### --- You should have received a copy of the GNU General Public License
 ### --- along with WDCM. If not, see <http://www.gnu.org/licenses/>.
 ### ---------------------------------------------------------------------------
-
-
-### --- TO DO
-# - crontab
-# - document: what HDFS version of WD dump is used
-### --- TO DO
 
 # - toLog
 print(paste0("WDCM Biases updated started at: ", 
@@ -84,13 +77,12 @@ params <- xmlToList(params)
 # - spark2-submit parameters:
 # - toLog
 print(paste0("Set Spark params: ", Sys.time()))
-fPathPython <- params$general$fPath_Python
-sparkMaster <- params$biases$spark$master
-sparkDeployMode <- params$biases$spark$deploy_mode
-sparkNumExecutors <- params$biases$spark$num_executors
-sparkDriverMemory <- params$biases$spark$driver_memory
-sparkExecutorMemory <- params$biases$spark$executor_memory
-sparkExecutorCores <- params$biases$spark$executor_cores
+sparkMaster <- params$biases$spark$biases_master
+sparkDeployMode <- params$biases$spark$biases_deploy_mode
+sparkNumExecutors <- params$biases$spark$biases_num_executors
+sparkDriverMemory <- params$biases$spark$biases_driver_memory
+sparkExecutorMemory <- params$biases$spark$biases_executor_memory
+sparkExecutorCores <- params$biases$spark$biases_executor_cores
 
 ### --- Set proxy
 # - toLog
@@ -103,16 +95,16 @@ Sys.setenv(
 # - toLog
 print(paste0("Set directory params: ", Sys.time()))
 # - fPath: where the scripts is run from?
-fPath <- params$biases$fPath
+fPath <- params$biases$biases_fPath
 # - log paths
-logDir <- params$biases$logDir
+logDir <- params$general$logDir
 # - hdfs directory
-hdfsDir <- params$biases$hdfsDir
+hdfsDir <- params$biases$biases_hdfsDir
 # - temporary ETL dir
-tempDataDir <- params$biases$tempDataDir
+tempDataDir <- params$biases$biases_tempDataDir
 # - published-datasets dir, maps onto
 # - https://analytics.wikimedia.org/datasets/wdcm/
-pubDataDir <- params$biases$pubDataDir
+pubDataDir <- params$biases$biases_pubDataDir
 
 # - clear tempDataDir
 lF <- list.files(tempDataDir)
@@ -151,14 +143,31 @@ gender$transM <- 'Q2449503'
 ### ---------------------------------------------------------------------------
 # - toLog
 print(paste0("Run Apache Spark ETL: ", Sys.time()))
-system(command = paste0('export USER=goransm && nice -10 spark2-submit ', 
+# - Kerberos init
+system(command = 
+         'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -ls', 
+       wait = T)
+# -  delete hdfsDir
+system(command = 
+         paste0(
+           'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -rm -r ',
+           hdfsDir),
+       wait = T)
+# -  make hdfsDir
+system(command = 
+         paste0(
+           'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -mkdir ',
+           hdfsDir),
+       wait = T)
+# - run Pyspark
+system(command = paste0('sudo -u analytics-privatedata spark2-submit ', 
                         sparkMaster, ' ',
                         sparkDeployMode, ' ', 
                         sparkNumExecutors, ' ',
                         sparkDriverMemory, ' ',
                         sparkExecutorMemory, ' ',
                         sparkExecutorCores, ' ',
-                        paste0(fPathPython, 'wdcmModule_Biases_ETL.py')
+                        paste0(fPath, 'wdcmModule_Biases_ETL.py')
                         ),
        wait = T)
 print(paste0("Run Apache Spark ETL (DONE): ", Sys.time()))
@@ -170,16 +179,20 @@ print(paste0("Run Apache Spark ETL (DONE): ", Sys.time()))
 print(paste0("Read Apache Spark ETL data: ", Sys.time()))
 # - copy splits from hdfs to local dataDir
 # - from statements:
-system(paste0('hdfs dfs -ls ', hdfsDir, ' > ', tempDataDir, 'files.txt'), 
-       wait = T)
+system(paste0(
+  'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -ls ',
+  paste0(hdfsDir, 'WDCM_Biases_ETL'), ' > ', tempDataDir, 'files.txt'),
+  wait = T)
 files <- read.table(
   paste0(tempDataDir, 'files.txt'), 
   skip = 1)
-files <- as.character(files$V8)[2:length(as.character(files$V8))]
+files <- as.character(files$V8)[2:length(files$V8)]
 file.remove(paste0(tempDataDir, 'files.txt'))
 for (i in 1:length(files)) {
-  system(paste0('hdfs dfs -text ', files[i], ' > ',  
-                paste0(tempDataDir, "wdcm_biases_etl_", i, ".csv")), wait = T)
+  system(paste0(
+    'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -text ',
+    files[i], ' > ',
+    paste0(tempDataDir, "wdcm_biases_etl_", i, ".csv")), wait = T)
 }
 lF <- list.files(tempDataDir)
 dataSet <- lapply(paste0(tempDataDir, lF), fread)
@@ -381,14 +394,22 @@ dev.off()
 ### --- indicators
 ### -----------------------------------
 geoItems <- geoItems[complete.cases(geoItems), ]
-globalGenderProportion_M <- sum(geoItems$usage[geoItems$gender == gender$male])
-globalGenderProportion_F <- sum(geoItems$usage[geoItems$gender == gender$female])
-globalGenderProportion_N <- sum(geoItems$usage[geoItems$lat > 0])
-globalGenderProportion_S <- sum(geoItems$usage[geoItems$lat < 0])
-genderPropotion_M_N <- sum(geoItems$usage[geoItems$gender == gender$male & geoItems$lat > 0])
-genderPropotion_M_S <- sum(geoItems$usage[geoItems$gender == gender$male & geoItems$lat < 0])
-genderPropotion_F_N <- sum(geoItems$usage[geoItems$gender == gender$female & geoItems$lat > 0])
-genderPropotion_F_S <- sum(geoItems$usage[geoItems$gender == gender$female & geoItems$lat < 0])
+globalGenderProportion_M <- 
+  sum(geoItems$usage[geoItems$gender == gender$male])
+globalGenderProportion_F <- 
+  sum(geoItems$usage[geoItems$gender == gender$female])
+globalGenderProportion_N <- 
+  sum(geoItems$usage[geoItems$lat > 0])
+globalGenderProportion_S <- 
+  sum(geoItems$usage[geoItems$lat < 0])
+genderPropotion_M_N <- 
+  sum(geoItems$usage[geoItems$gender == gender$male & geoItems$lat > 0])
+genderPropotion_M_S <- 
+  sum(geoItems$usage[geoItems$gender == gender$male & geoItems$lat < 0])
+genderPropotion_F_N <- 
+  sum(geoItems$usage[geoItems$gender == gender$female & geoItems$lat > 0])
+genderPropotion_F_S <- 
+  sum(geoItems$usage[geoItems$gender == gender$female & geoItems$lat < 0])
 rm(geoItems)
 
 ### --- Gender by Project Tab
@@ -438,10 +459,14 @@ mfPropProject <- genderProject %>%
   group_by(projectType) %>%
   summarise(usageM = sum(usageM), usageF = sum(usageF))
 # - add proportions and percents
-mfPropProject$propM <- mfPropProject$usageM/(mfPropProject$usageM + mfPropProject$usageF)
-mfPropProject$propF <- mfPropProject$usageF/(mfPropProject$usageM + mfPropProject$usageF)
-mfPropProject$percentM <- round(mfPropProject$usageM/(mfPropProject$usageM + mfPropProject$usageF)*100, 2)
-mfPropProject$percentF <- round(mfPropProject$usageF/(mfPropProject$usageM + mfPropProject$usageF)*100, 2)
+mfPropProject$propM <- 
+  mfPropProject$usageM/(mfPropProject$usageM + mfPropProject$usageF)
+mfPropProject$propF <- 
+  mfPropProject$usageF/(mfPropProject$usageM + mfPropProject$usageF)
+mfPropProject$percentM <- 
+  round(mfPropProject$usageM/(mfPropProject$usageM + mfPropProject$usageF)*100, 2)
+mfPropProject$percentF <- 
+  round(mfPropProject$usageF/(mfPropProject$usageM + mfPropProject$usageF)*100, 2)
 # - Bayesian Binomial test w. Beta(1,1)
 # - toLog
 print(paste0("Bayesian tests: ", Sys.time()))
@@ -576,7 +601,8 @@ dev.off()
 ### -----------------------
 # - toLog
 print(paste0("Diversity: ", Sys.time()))
-### --- Gini coefficient and Lorentz curve for M and F items Wikidata usage
+### --- Gini coefficient and Lorentz curve 
+### --- for M and F items Wikidata usage
 fItems <- genItems %>%
   filter(gender == 'F')
 mItems <- genItems %>%
@@ -593,7 +619,9 @@ fLor <- Lc(fItems$usage)
 mLor <- Lc(mItems$usage)
 pFrame <- data.frame(p = c(fLor$p, mLor$p),
                      L = c(fLor$L, mLor$L),
-                     gender = c(rep('F', length(fLor$p)), rep('M', length(mLor$p))))
+                     gender = c(rep('F', length(fLor$p)), 
+                                rep('M', length(mLor$p)))
+                     )
 mfSample <- sample(1:length(pFrame$gender), 10000)
 pFrame <- pFrame[mfSample, ]
 add01 <- data.frame(p = c(0,1, 0, 1),
@@ -609,9 +637,16 @@ png(filename = paste0(tempDataDir, filename),
     type = c("cairo-png")
 )
 ggplot(pFrame, aes(x = p, y = L, color = gender)) +
-  geom_segment(x = 0, y = 0, xend = 1, yend = 1, size = .02, color = "black", linetype = "dotted") +
+  geom_segment(x = 0, y = 0, 
+               xend = 1, yend = 1, 
+               size = .02, 
+               color = "black", 
+               linetype = "dotted") +
   geom_line(size = 1) +
-  geom_segment(x = 0, y = 0, xend = 1, yend = 1, size = .1, color = "black", linetype = "dashed") +
+  geom_segment(x = 0, y = 0, xend = 1, 
+               yend = 1, size = .1, 
+               color = "black", 
+               linetype = "dashed") +
   scale_color_manual(values = c("indianred1", "deepskyblue")) +
   ggtitle(paste0("Wikidata Usage Lorenz Curves\n",
                  "Gini(F) = ", giniF, ", Gini(M) = ", giniM)) +
@@ -693,8 +728,11 @@ write.csv(occUsage,
 ### -----------------------------------
 # - toLog
 print(paste0("Write global indicators: ", Sys.time()))
-globalIndicators <- data.frame(nMaleItems, nFemaleItems, nIntersexItems, nTransMItems, nTransFItems,
-                               totalUsage_M, totalUsage_F, globalGenderProportion_M, globalGenderProportion_F,
+globalIndicators <- data.frame(nMaleItems, nFemaleItems, 
+                               nIntersexItems, nTransMItems, 
+                               nTransFItems,
+                               totalUsage_M, totalUsage_F, 
+                               globalGenderProportion_M, globalGenderProportion_F,
                                globalGenderProportion_N, globalGenderProportion_S,
                                genderPropotion_M_N, genderPropotion_M_S,
                                genderPropotion_F_N, genderPropotion_F_S, giniM, giniF)
@@ -717,6 +755,25 @@ lapply(lF, function(x) {
 ### -----------------------------------
 ### --- final log
 ### -----------------------------------
+### --------------------------------------------------
+### --- copy and clean up log files:
+### --------------------------------------------------
+# - copy the main log file to published for timestamp
+# - toRuntime log:
+print("Copy main log to published; clean up log.")
+# - archive:
+lF <- list.files(logDir)
+lF <- lF[grepl('WDCM_EngineBiasesRuntimeLog', lF)]
+lapply(lF, function(x) {
+  system(command = 
+           paste0('cp ', logDir, x, ' ', logDir, 'archive/'),
+         wait = T)
+})
+# - clean up
+file.remove(paste0(logDir, lF))
+# - conclusion
+print("DONE. Exiting.")
+
 # - toLog
 print(paste0("WDCM Biases updated ended at: ", Sys.time()))
 

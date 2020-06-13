@@ -2,17 +2,19 @@
 
 ### ---------------------------------------------------------------------------
 ### --- wdcmModule_Orchestra.R
-### --- Author: Goran S. Milovanovic, Data Analyst, WMDE
+### --- Version 1.0.0
+### --- Author: Goran S. Milovanovic, Data Scientist, WMDE
 ### --- Developed under the contract between Goran Milovanovic PR Data Kolektiv
 ### --- and WMDE.
 ### --- Contact: goran.milovanovic_ext@wikimedia.de
-### --- January 2019.
+### --- June 2020.
 ### ---------------------------------------------------------------------------
 ### --- DESCRIPTION:
 ### --- Orchestrate WDCM modules:
 ### --- 1. wdcmModule_CollectItems.R
-### --- 2. wdcmModule_ETL.py (Pyspark ETL)
+### --- 2. wdcmModule_ETL.py (PySpark)
 ### --- 3. wdcmModule_ML.R
+### --- 4. wdcmModule_Compose.R
 ### ---------------------------------------------------------------------------
 ### ---------------------------------------------------------------------------
 ### --- LICENSE:
@@ -32,10 +34,9 @@
 ### ---
 ### --- You should have received a copy of the GNU General Public License
 ### --- along with WDCM. If not, see <http://www.gnu.org/licenses/>.
-### ---------------------------------------------------------------------------
 
 ### ---------------------------------------------------------------------------
-### --- Script 4: wdcmModule_Orchestra.R
+### --- Script 0: wdcmModule_Orchestra.R
 ### ---------------------------------------------------------------------------
 
 # - XML
@@ -69,10 +70,14 @@ logDir <- params$general$logDir
 itemsDir <- params$general$itemsDir
 structureDir <- params$general$structureDir
 etlDir <- params$general$etlDir
+etlDirGeo <- params$general$etlDirGeo
 mlDir <- params$general$mlDir
 tempDir <- params$general$tempDir
 # - production published-datasets:
 dataDir <- params$general$publicDir
+# - hdfs ETL paths
+hdfsPATH_WDCM_ETL <- params$general$hdfsPATH_WDCM_ETL
+hdfsWDCM_ETL_GEODir <- params$general$hdfsPATH_WDCM_ETL_GEO
 # - spark2-submit parameters:
 sparkMaster <- params$spark$master
 sparkDeployMode <- params$spark$deploy_mode
@@ -128,15 +133,19 @@ system(command = paste0('export USER=goransm && nice -10 Rscript ',
 # - toRuntime Log:
 print("Log: RUN wdcmModule_ETL.py")
 
-# - clean etlDir, mlDir, tempDir
-setwd(etlDir)
-file.remove(list.files())
-setwd(mlDir)
-file.remove(list.files())
-setwd(tempDir)
-file.remove(list.files())
+# - clean ETL dirs
+if (length(list.files(etlDir)) > 1) {
+  file.remove(paste0(etlDir, list.files(etlDir)))
+}
+if (length(list.files(etlDirGeo)) > 1) {
+  file.remove(paste0(etlDirGeo, list.files(etlDirGeo)))
+}
 
-system(command = paste0('export USER=goransm && nice -10 spark2-submit ', 
+# - Kerberos init
+system(command = 'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -ls', 
+       wait = T)
+# - Run PySpark ETL
+system(command = paste0('sudo -u analytics-privatedata spark2-submit ', 
                         sparkMaster, ' ',
                         sparkDeployMode, ' ', 
                         sparkNumExecutors, ' ',
@@ -215,6 +224,46 @@ if ('WDCM_MainReport.csv' %in% lF) {
 }
 
 ### --------------------------------------------------
+### --- Run wdcmModule_Compose.R
+### --------------------------------------------------
+
+# - toRuntime Log:
+print("Log: RUN wdcmModule_Compose.R")
+
+system(command = paste0('export USER=goransm && nice -10 Rscript  ', 
+                        paste0(fPathR, 'wdcmModule_Compose.R '),
+                        paste0(logDir, '> wdcmModule_Compose.log 2>&1')
+),
+wait = T)
+
+### --------------------------------------------------
+### --- log Compose:
+### --------------------------------------------------
+# - to runtime Log:
+print("--- LOG: Compose step completed.")
+# - set log dir:
+setwd(logDir)
+# - write to WDCM main reporting file:
+lF <- list.files()
+if ('WDCM_MainReport.csv' %in% lF) {
+  mainReport <- read.csv('WDCM_MainReport.csv',
+                         header = T,
+                         row.names = 1,
+                         check.names = F,
+                         stringsAsFactors = F)
+  newReport <- data.frame(Step = 'Compose',
+                          Time = as.character(Sys.time()),
+                          stringsAsFactors = F)
+  mainReport <- rbind(mainReport, newReport)
+  write.csv(mainReport, 'WDCM_MainReport.csv')
+} else {
+  newReport <- data.frame(Step = 'Compose',
+                          Time = as.character(Sys.time()),
+                          stringsAsFactors = F)
+  write.csv(newReport, 'WDCM_MainReport.csv')
+}
+
+### --------------------------------------------------
 ### --- copy ETL/ML outputs to public directory:
 ### --------------------------------------------------
 
@@ -223,6 +272,12 @@ print("Copy ETL outputs to public directory.")
 # - copy ETL outputs
 system(command = 
          paste0('cp ', etlDir, '* ' , dataDir, 'etl/'),
+       wait = T)
+# - toRuntime log:
+print("Copy ETL GEO outputs to public directory.")
+# - copy ETL GEO outputs
+system(command = 
+         paste0('cp ', etlDirGeo, '* ' , dataDir, 'geo/'),
        wait = T)
 # - toRuntime log:
 print("Copy ML results to public directory.")
@@ -286,3 +341,4 @@ lapply(lF, function(x) {
 file.remove(paste0(logDir, lF))
 # - conclusion
 print("DONE. Exiting.")
+

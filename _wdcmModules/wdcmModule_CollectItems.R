@@ -2,11 +2,12 @@
 
 ### ---------------------------------------------------------------------------
 ### --- wdcmModule_CollectItems.R
-### --- Author: Goran S. Milovanovic, Data Analyst, WMDE
+### --- Version 1.0.0
+### --- Author: Goran S. Milovanovic, Data Scientist, WMDE
 ### --- Developed under the contract between Goran Milovanovic PR Data Kolektiv
 ### --- and WMDE.
 ### --- Contact: goran.milovanovic_ext@wikimedia.de
-### --- January 2019.
+### --- June 2020.
 ### ---------------------------------------------------------------------------
 ### --- DESCRIPTION:
 ### --- Contact WDQS and fetch all item IDs from the WDCM WD Ontology
@@ -32,6 +33,7 @@
 ### --- You should have received a copy of the GNU General Public License
 ### --- along with WDCM. If not, see <http://www.gnu.org/licenses/>.
 ### ---------------------------------------------------------------------------
+
 ### ---------------------------------------------------------------------------
 ### --- Script 1: wdcmModule_CollectItems.R
 ### ---------------------------------------------------------------------------
@@ -63,11 +65,6 @@ library(stringr)
 library(readr)
 library(data.table)
 library(tidyr)
-# - modeling:
-library(snowfall)
-library(maptpx)
-library(Rtsne)
-library(topicmodels)
 
 ### --- Read WDCM paramereters
 # - fPath: where the scripts is run from?
@@ -93,12 +90,13 @@ fPath <- params$general$fPath_R
 ontologyDir <- params$general$ontologyDir
 logDir <- params$general$logDir
 itemsDir <- params$general$itemsDir
-structureDir <- params$general$structureDir
+itemsGeoDir <- params$general$etlDirGeo
 # - production published-datasets:
 dataDir <- params$general$publicDir
 # - hdfs CollectedItems dir
-hdfsDir_WDCMCollectedItemsDir <- params$general$hdfsCollectedItemsDir
-
+hdfsDir_WDCMCollectedItemsDir <- params$general$hdfsPATH_WDCMCollectedItems
+# - hdfsCollectedGeoItemsDir dir
+hdfsCollectedGeoItemsDir <- params$general$hdfsPATH_WDCMCollectedGeoItems
 
 ### --- Read WDCM_Ontology
 # - to runtime Log:
@@ -110,10 +108,6 @@ wdcmOntology <- read.csv(paste0(params$general$ontologyDir, params$general$ontol
                          stringsAsFactors = F)
 
 # - WDQS Classes endPoint
-# - NOTE: from https://www.mediawiki.org/wiki/Wikidata_Query_Service/Categories
-# - an endpoint is provided which does not return any results except for the very 
-# - gas:in class that was inputed to BFS.
-# - Using the "default" WDQS SPARQL endpoint here (this delivers):
 endPointURL <- params$general$wdqs_endpoint
 
 # - set itemsDir:
@@ -229,11 +223,7 @@ for (i in 1:length(wdcmOntology$CategoryItems)) {
     
     # - itemsOut as data.table:
     itemsOut <- rbindlist(itemsOut)
-    # - write complete structure for category
-    filename <- paste0(wdcmOntology$Category[i], "_Structure.csv")
-    setwd(structureDir)
-    write.csv(itemsOut, filename)
-    
+
     # - keep only unique items:
     w <- which(!(duplicated(itemsOut$item)))
     itemsOut <- itemsOut[w]
@@ -241,6 +231,7 @@ for (i in 1:length(wdcmOntology$CategoryItems)) {
     # store as CSV
     itemsOut$category <- wdcmOntology$Category[i]
     filename <- paste0(wdcmOntology$Category[i],"_ItemIDs.csv")
+    # - store
     setwd(itemsDir)
     write_csv(itemsOut, filename)
     
@@ -248,68 +239,43 @@ for (i in 1:length(wdcmOntology$CategoryItems)) {
     rm(itemsOut); gc()
   }
   
-  }
+}
 
 ### --- Fix WDCM_Ontology (Phab T174896#3762820)
-
 # - to runtime Log:
 print("--- Fix WDCM_Ontology (Phab T174896#3762820)")
 
 # - remove Geographical Object from Organization:
-organizationItems <- read.csv('Organization_ItemIDs.csv',
-                              header = T,
-                              check.names = F,
-                              stringsAsFactors = F)
-geoObjItems <- read.csv('Geographical Object_ItemIDs.csv',
-                        header = T,
-                        check.names = F,
-                        stringsAsFactors = F)
+organizationItems <- fread(paste0(itemsDir, 'Organization_ItemIDs.csv'))
+geoObjItems <- fread(paste0(itemsDir, 'Geographical Object_ItemIDs.csv'))
 w <- which(organizationItems$item %in% geoObjItems$item)
 if (length(w) > 0) {
   organizationItems <- organizationItems[-w, ]
 }
-organizationItems <- data.frame(item = organizationItems,
-                                stringsAsFactors = F)
 # - store:
-write.csv(organizationItems, 'Organization_ItemIDs.csv')
+write_csv(organizationItems, 'Organization_ItemIDs.csv')
 # - clear:
 rm(organizationItems); rm(geoObjItems); gc()
 # - remove Book from Work of Art:
-bookItems <- read.csv('Book_ItemIDs.csv',
-                      header = T,
-                      check.names = F,
-                      stringsAsFactors = F)
-WorkOfArtItems <- read.csv('Work Of Art_ItemIDs.csv',
-                           header = T,
-                           check.names = F,
-                           stringsAsFactors = F)
-w <- which(WorkOfArtItems$item %in% bookItems$item)
+bookItems <- fread(paste0(itemsDir, 'Book_ItemIDs.csv'))
+workOfArtItems <- fread(paste0(itemsDir, 'Work Of Art_ItemIDs.csv'))
+w <- which(workOfArtItems$item %in% bookItems$item)
 if (length(w) > 0) {
-  WorkOfArtItems <- WorkOfArtItems[-w, ]
+  workOfArtItems <- workOfArtItems[-w, ]
 }
-WorkOfArtItems <- data.frame(item = WorkOfArtItems,
-                             stringsAsFactors = F)
 # - store:
-write.csv(WorkOfArtItems, 'Work Of Art_ItemIDs.csv')
+write_csv(workOfArtItems, 'Work Of Art_ItemIDs.csv')
 # - clear:
-rm(WorkOfArtItems); rm(bookItems); gc()
+rm(workOfArtItems); rm(bookItems); gc()
 # - remove Architectural Structure from Geographical Object:
-architectureItems <- read.csv('Architectural Structure_ItemIDs.csv',
-                              header = T,
-                              check.names = F,
-                              stringsAsFactors = F)
-geoObjItems <- read.csv('Geographical Object_ItemIDs.csv',
-                        header = T,
-                        check.names = F,
-                        stringsAsFactors = F)
+architectureItems <- fread(paste0(itemsDir, 'Architectural Structure_ItemIDs.csv'))
+geoObjItems <- fread(paste0(itemsDir, 'Geographical Object_ItemIDs.csv'))
 w <- which(geoObjItems$item %in% architectureItems$item)
 if (length(w) > 0) {
   geoObjItems <- geoObjItems[-w, ]
 }
-geoObjItems <- data.frame(item = geoObjItems,
-                          stringsAsFactors = F)
 # - store:
-write.csv(geoObjItems, 'Geographical Object_ItemIDs.csv')
+write_csv(geoObjItems, 'Geographical Object_ItemIDs.csv')
 # - clear:
 rm(geoObjItems); rm(architectureItems); gc()
 
@@ -340,15 +306,201 @@ if ('WDCM_MainReport.csv' %in% lF) {
   write.csv(newReport, 'WDCM_MainReport.csv')
 }
 
+### --- rename files for hdfs
+itemFiles <- list.files(itemsDir)
+itemFiles <- gsub(" ", "\\ ", itemFiles, fixed = T)
+itemNames <- unname(sapply(itemFiles, function(x){
+  gsub("\\s|_", "-", x)
+}))
+for (i in 1:length(itemFiles)) {
+  system(command = paste0("mv ", paste0(itemsDir, itemFiles[i]), " ", 
+                          paste0(itemsDir, itemNames[i])),
+         wait = T)
+}
+
 ### --- Copy to hdfs
-# - delete existing files
-hdfsC <- system(command = paste0('hdfs dfs -rmr ',
+# -  delete hdfsDir_WDCMCollectedItemsDir
+system(command = 
+         paste0(
+           'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -rm -r ',
+           hdfsDir_WDCMCollectedItemsDir),
+       wait = T)
+# -  make hdfsDir_WDCMCollectedItemsDir
+system(command = 
+         paste0(
+           'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -mkdir ',
+           hdfsDir_WDCMCollectedItemsDir),
+       wait = T)
+# -  copy to hdfsDir_WDCMCollectedItemsDir
+print("---- Move to hdfs.")
+hdfsC <- system(command = paste0('sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -put -f ',
+                                 itemsDir, "* ",
                                  hdfsDir_WDCMCollectedItemsDir),
                 wait = T)
-# - copy:
-hdfsC <- system(command = paste0('hdfs dfs -put ',
-                                 itemsDir, " ",
-                                 hdfsDir_WDCMCollectedItemsDir),
+
+### --- Collect GEO items
+# - to runtime Log:
+print(paste("--- WDCM GeoEngine update STARTED ON:", Sys.time(), sep = " "))
+# - GENERAL TIMING:
+generalT1 <- Sys.time()
+
+### --- Read WDCM_GeoItems
+# - to runtime Log:
+print("--- Reading Ontology.")
+wdcmGeoItems <- read.csv(paste0(ontologyDir, 
+                                "WDCM_GeoItems_Belgrade_12152017.csv"),
+                         header = T,
+                         check.names = F,
+                         stringsAsFactors = F)
+
+### --- Select all instances accross all sub-classes of searchItems:
+# - set itemsDir:
+setwd(itemsGeoDir)
+
+# - clear output dir:
+lF <- list.files()
+rmF <- file.remove(lF)
+
+# - track uncompleted queries:
+qErrors <- character()
+
+# - startTime (WDCM Main Report)
+startTime <- as.character(Sys.time())
+
+for (i in 1:length(wdcmGeoItems$item)) {
+  
+  # - to runtime Log:
+  print(paste("--- SPARQL category:", i, ":", wdcmGeoItems$itemLabel[i], sep = " "))
+  
+  searchItems <- str_trim(wdcmGeoItems$item[i], "both")
+  
+  # - Construct Query:
+  query <- paste0(
+    'PREFIX wd: <http://www.wikidata.org/entity/> ',
+    'PREFIX wdt: <http://www.wikidata.org/prop/direct/> ',
+    'SELECT ?item ?coordinate ?itemLabel WHERE {?item (wdt:P31|(wdt:P31/wdt:P279*)) wd:',
+    searchItems, '. ',
+    '?item wdt:P625 ?coordinate. ',
+    'SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }', 
+    ' }'
+  )
+  
+  # - init repeat counter
+  c <- 0
+  
+  repeat {
+    
+    # - run query:
+    res <- GET(url = paste0(endPointURL, URLencode(query)))
+    
+    # - check query:
+    if (res$status_code != 200) {
+      # - to runtime Log:
+      print(paste("Server response not 200 for SPARQL category: ", i, "; repeating.", (c <- c + 1),sep = ""))
+      rc <- 'error'
+    } else {
+      print(paste("Parsing now SPARQL category:", i, sep = ""))
+      # - JSON:
+      rc <- rawToChar(res$content)
+      rc <- tryCatch(
+        {
+          # - fromJSON:
+          fromJSON(rc, simplifyDataFrame = T)
+        },
+        warning = function(cond) {
+          # - return error:
+          print(paste("Parsing now SPARQL category:", i, " failed w. warning; repeating.", (c <- c + 1), sep = ""))
+          'error'
+        }, 
+        error = function(cond) {
+          # - return error:
+          print(paste("Parsing now SPARQL category:", i, " failed w. error; repeating.", (c <- c + 1), sep = ""))
+          'error'
+        }
+      )
+    }
+    
+    # - condition:
+    if (res$status_code == 200 & class(rc) == 'list') {
+      print("Parsing successful.")
+      
+      # - clean:
+      rm(res); gc()
+      
+      # - extract:
+      item <- rc$results$bindings$item$value
+      coordinate <- rc$results$bindings$coordinate$value
+      label <- rc$results$bindings$itemLabel$value
+      # - as.data.frame:
+      items <- data.frame(item = item,
+                          coordinate = coordinate,
+                          label = label,
+                          stringsAsFactors = F)
+      # - clear:
+      rm(item); rm(coordinate); rm(label); rm(rc); gc()
+      # - keep unique result set:
+      w <- which(duplicated(items$item))
+      if (length(w) > 0) {items <- items[-w, ]}
+      # - clear possible NAs from coordinates
+      w <- which(is.na(items$coordinate) | (items$coordinate == ""))
+      if (length(w) > 0) {items <- items[-w, ]}
+      # - fix items
+      items$item <- gsub("http://www.wikidata.org/entity/", "", items$item, fixed = T)
+      # - fix coordinates (lon, lat)
+      items$coordinate <- gsub("Point(", "", items$coordinate, fixed = T)
+      items$coordinate <- gsub(")", "", items$coordinate, fixed = T)
+      lon <- str_extract(items$coordinate, "^.+\\s")
+      lat <- str_extract(items$coordinate, "\\s.+$")
+      items$coordinate <- NULL
+      items$lon <- lon
+      items$lat <- lat
+      # clear:
+      rm(lon); rm(lat); gc()
+      
+      # store as CSV
+      write_csv(items, path = paste0(wdcmGeoItems$itemLabel[i],"_ItemIDs.csv"))
+      
+      # exit:
+      break
+    }
+    
+    print("Pause for 10 secs.")
+    Sys.sleep(10)
+    
+  }
+  
+}
+
+### --- rename geo files for hdfs
+itemFiles <- list.files(itemsGeoDir)
+itemFiles <- gsub(" ", "\\ ", itemFiles, fixed = T)
+itemNames <- unname(sapply(itemFiles, function(x){
+  gsub("\\s|_", "-", x)
+}))
+for (i in 1:length(itemFiles)) {
+  system(command = paste0("mv ", paste0(itemsGeoDir, itemFiles[i]), " ", 
+                          paste0(itemsGeoDir, itemNames[i])),
+         wait = T)
+}
+
+### --- Copy to hdfs
+# -  delete hdfsCollectedGeoItemsDir
+system(command = 
+         paste0(
+           'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -rm -r ',
+           hdfsCollectedGeoItemsDir),
+       wait = T)
+# -  make hdfsCollectedGeoItemsDir
+system(command = 
+         paste0(
+           'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -mkdir ',
+           hdfsCollectedGeoItemsDir),
+       wait = T)
+# -  copy to hdfsCollectedGeoItemsDir
+print("---- Move to hdfs.")
+hdfsC <- system(command = paste0('sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -put -f ',
+                                 itemsGeoDir, "* ",
+                                 hdfsCollectedGeoItemsDir),
                 wait = T)
 
 # - GENERAL TIMING:

@@ -58,33 +58,50 @@ import xml.etree.ElementTree as ET
 import requests
 import json
 
-### --- Init Spark
 
+### --- parse WDCM parameters
+# - where is the script being run from:
+parsFile = str(sys.path[0]) + "/wdcmConfig.xml"
+# - parse wdcmConfig.xml
+tree = ET.parse(parsFile)
+root = tree.getroot()
+k = [elem.tag for elem in root.iter()]
+v = [x.text for x in root.iter()]
+params = dict(zip(k, v))
+### --- dir structure and params
+# - HDFS dir
+hdfsDir = params['biases_hdfsDir']
+# - WD Dump JSON file in hdfs
+hdfsDump = params['wdDumpPATH']
+# - wmf.wikidata_entity table snapshot
+wikidataEntitySnapshot = params['wikidataEntitySnapshot']
+
+
+### --- Init Spark
 # - Spark Session
 sc = SparkSession\
     .builder\
     .appName("Wikidata Concepts Monitor Biases ETL")\
     .enableHiveSupport()\
     .getOrCreate()
-
 # - SQL Context
 sqlContext = pyspark.SQLContext(sc)
+
 
 ### ---------------------------------------------------------------------------
 ### --- Import WD JSON dump from hdfs
 ### ---------------------------------------------------------------------------
 
 ### --- Access WD dump
-WD_dump = sqlContext.read.parquet('/user/joal/wmf/data/wmf/mediawiki/wikidata_parquet/20190603')
-
+WD_dump = sqlContext.sql('SELECT id, claims.mainSnak FROM wmf.wikidata_entity WHERE snapshot="' + wikidataEntitySnapshot + '"')
 ### --- Cache WD dump
 WD_dump.cache()
+### --- Explode mainSnak for properties
+WD_dump = WD_dump.withColumn('mainSnak', explode('mainSnak'))
 
 ### --- Extract all items w. P21 (sex or gender)
 ### --- Explode claims & select
-items_P21 = WD_dump.select('id', 'claims.mainSnak')
-items_P21 = items_P21.withColumn('mainSnak', explode('mainSnak'))
-items_P21 = items_P21.select('id', col("mainSnak.property").alias("propertyP21"), \
+items_P21 = WD_dump.select('id', col("mainSnak.property").alias("propertyP21"), \
                          col('mainSnak.dataValue').alias("dataValue"))
 items_P21 = items_P21.select('id', 'propertyP21', \
                          col('dataValue.value').alias("valueP21"))
@@ -94,9 +111,7 @@ items_P21 = items_P21.select('id', \
 
 ### --- Extract all items w. P19 (place of birth)
 ### --- Explode claims & select
-items_P19 = WD_dump.select('id', 'claims.mainSnak')
-items_P19 = items_P19.withColumn('mainSnak', explode('mainSnak'))
-items_P19 = items_P19.select('id', col("mainSnak.property").alias("propertyP19"), \
+items_P19 = WD_dump.select('id', col("mainSnak.property").alias("propertyP19"), \
                          col('mainSnak.dataValue').alias("dataValue"))
 items_P19 = items_P19.select('id', 'propertyP19', \
                          col('dataValue.value').alias("valueP19"))
@@ -111,9 +126,7 @@ del(items_P19)
 
 ### --- Extract all items w. P106 (occupation)
 ### --- Explode claims & select
-items_P106 = WD_dump.select('id', 'claims.mainSnak')
-items_P106 = items_P106.withColumn('mainSnak', explode('mainSnak'))
-items_P106 = items_P106.select('id', col("mainSnak.property").alias("propertyP106"), \
+items_P106 = WD_dump.select('id', col("mainSnak.property").alias("propertyP106"), \
                          col('mainSnak.dataValue').alias("dataValue"))
 items_P106 = items_P106.select('id', 'propertyP106', \
                          col('dataValue.value').alias("valueP106"))
@@ -127,9 +140,7 @@ del(items_P106)
 
 ### --- Extract all geo-coded items to join w. P19 place of birth
 ### --- Explode claims & select
-geo_items = WD_dump.select('id', 'claims.mainSnak')
-geo_items = geo_items.withColumn('mainSnak', explode('mainSnak'))
-geo_items = geo_items.select('id', col("mainSnak.property").alias("property"), \
+geo_items = WD_dump.select('id', col("mainSnak.property").alias("property"), \
                          col('mainSnak.dataValue').alias("dataValue"))
 geo_items = geo_items.where(col('property').isin("P625"))
 geo_items = geo_items.select('id', 'dataValue.value')
@@ -162,7 +173,7 @@ del(WDCM_MainTableRaw)
 ### --- repartition and save to hdfs
 items = items.repartition(10)
 # - save to csv:
-items.write.format('csv').mode("overwrite").save('WDCM_Biases_ETL_Test')
+items.write.format('csv').mode("overwrite").save(hdfsDir+'WDCM_Biases_ETL')
 
 ### --- clear
 sc.catalog.clearCache()

@@ -2,11 +2,12 @@
 
 ### ---------------------------------------------------------------------------
 ### --- wdcmModule_ML.R
-### --- Author: Goran S. Milovanovic, Data Analyst, WMDE
+### --- Version 1.0.0
+### --- Author: Goran S. Milovanovic, Data Scientist, WMDE
 ### --- Developed under the contract between Goran Milovanovic PR Data Kolektiv
 ### --- and WMDE.
 ### --- Contact: goran.milovanovic_ext@wikimedia.de
-### --- January 2019.
+### --- June 2020.
 ### ---------------------------------------------------------------------------
 ### --- DESCRIPTION:
 ### --- Machine Learning procedures for WDCM
@@ -34,15 +35,15 @@
 ### --- You should have received a copy of the GNU General Public License
 ### --- along with WDCM. If not, see <http://www.gnu.org/licenses/>.
 ### ---------------------------------------------------------------------------
+
 ### ---------------------------------------------------------------------------
-### --- Script 3: wdcmModule_ML.R
+### --- Script 4: wdcmModule_ML.R
 ### ---------------------------------------------------------------------------
 ### --- DESCRIPTION:
 ### --- wdcmModule_ML.R produces WD items TF matrices for LDA Topic Models and 
 ### --- applies t-SNE dimensionality reduction across several 
 ### --- model-based similarity matrices. 
 ### ---------------------------------------------------------------------------
-
 
 # - to runtime Log:
 print(paste("--- wdcmModule_ML.R UPDATE RUN STARTED ON:", 
@@ -51,8 +52,6 @@ print(paste("--- wdcmModule_ML.R UPDATE RUN STARTED ON:",
 generalT1 <- Sys.time()
 
 ### --- Setup
-
-# - contact:
 library(httr)
 library(XML)
 library(jsonlite)
@@ -64,11 +63,13 @@ library(data.table)
 library(tidyr)
 # - modeling:
 library(snowfall)
-library(maptpx)
+library(text2vec)
 library(Rtsne)
 ### NOTE: replace proxy Hellinger Distrance
-# library(proxy)
+#-  library(proxy)
 library(topicmodels)
+# - matrix
+library(Matrix)
 
 ### --- functions
 # - projectType() to determine project type
@@ -109,16 +110,20 @@ logDir <- params$general$logDir
 itemsDir <- params$general$itemsDir
 structureDir <- params$general$structureDir
 etlDir <- params$general$etlDir
-outDir <- params$general$mlDir
+mlDir <- params$general$mlDir
+mlInputDir <- params$general$mlInputDir
 # - production published-datasets:
 dataDir <- params$general$publicDir
-
 ### --- ML params
 lda_NItems <- as.numeric(params$ml$lda_NItems)
+tSNE_Perplexity <- as.numeric(params$ml$tSNE_Perplexity)
+tsne_theta <- as.numeric(params$ml$tSNE_Theta)
 
 ### ----------------------------------------------
 ### --- reshape project-item matrices for LDA
 ### ----------------------------------------------
+
+# - to etlDir
 setwd(etlDir)
 # - to runtime Log:
 print("STEP: Semantic Modeling Phase: RESHAPING TDF MATRICES")
@@ -136,7 +141,7 @@ for (i in 1:length(itemFiles)) {
   # - load i-th TFMatrix
   categoryFile <- fread(itemFiles[i])
   categoryFile$V1 <- NULL
-  # -filter for nItems in categoryFile (the top lda_NItems frequently used items)
+  # - filter for nItems in categoryFile (the top lda_NItems frequently used items)
   categoryFile <- categoryFile %>%
     dplyr::select(eu_entity_id, eu_project, eu_count) %>% 
     dplyr::filter(eu_entity_id %in% nItems)
@@ -157,16 +162,23 @@ for (i in 1:length(itemFiles)) {
     categoryFile <- categoryFile[-w, ]
   }
   # - save reshaped TF matrix
-  write.csv(categoryFile, itemFiles[i])
+  write.csv(categoryFile, paste0(mlInputDir, itemFiles[i]))
 }
 
 ### ----------------------------------------------
 ### --- LDA topic models for each category
 ### ----------------------------------------------
-### --- to nohup.out
+
 # - to runtime Log:
 print("STEP: Semantic Modeling Phase: LDA estimation")
+
 for (i in 1:length(itemFiles)) {
+  
+  # - to mlInputDir
+  setwd(mlInputDir)
+  
+  # - to Report:
+  print(paste0("Estimating category: ", itemFiles[i]))
   
   categoryName <- strsplit(itemFiles[i], split = ".", fixed = T)[[1]][1]
   categoryName <- strsplit(categoryName, split = "_", fixed = T)[[1]][2]
@@ -181,69 +193,141 @@ for (i in 1:length(itemFiles)) {
   },
   error = function(condition) {NULL}
   )
+  # - convert itemCat to sparse matrix for {text2vec}
+  itemCat <- as(as.matrix(itemCat), "sparseMatrix")
   
   if (!is.null(itemCat)) {
     
-    itemCat <- as.simple_triplet_matrix(itemCat)
+    # - prepare subsets for 3-fold cross-validation
+    foldIx <- sample(1:3, dim(itemCat)[1], replace = T)
+    folds <- 1:3
     
-    ## -- run on K = seq(2,20) semantic topics
-    ####### ----------- PARALLEL w. {snowfall} STARTS
-    # - start cluster and export data + package
-    sfInit(parallel = T, cpus = 19)
-    sfExport("itemCat")
-    sfLibrary(maptpx)
+    # - store perplexity
+    repl_perplexity <- vector(mode = "list", length = length(folds))
     
-    # - to runtime Log:
-    print(paste("----------------------- LDA model: category ", i, ".", sep = ""))  
-    topicModel <- list()
-    numTopics <- seq(2, 20, by = 1)
-    topicModels <- sfClusterApplyLB(numTopics,
-                                    function(x) {
-                                      maptpx::topics(counts = itemCat,
-                                                     K = x, bf = T,
-                                                     shape = NULL, initopics = NULL,
-                                                     tol = .02, kill = 0,
-                                                     ord = TRUE, verb = 0)
-                                    }
-    )
-    
-    # - stop cluster
-    sfStop()
-    
-    # - clear:
-    rm(itemCat); gc()
-    # - determine model from Bayes Factor against Null:
-    wModel <- which.max(sapply(topicModels, function(x) {x$BF}))[1]
-    topicModel <- topicModels[[wModel]]
-    rm(topicModels)
-    
-    # - to ml results dir:
-    setwd(outDir)
-    
-    # - collect matrices:
-    wdcm_itemtopic <- as.data.frame(topicModel$theta)
-    colnames(wdcm_itemtopic) <- paste("topic", seq(1, dim(wdcm_itemtopic)[2]), sep = "")
-    itemTopicFileName <- paste('wdcm2_itemtopic',
-                               paste(categoryName, ".csv", sep = ""),
-                               sep = "_")
-    write.csv(wdcm_itemtopic, itemTopicFileName)
-    
-    wdcm_projecttopic <- as.data.frame(topicModel$omega)
-    colnames(wdcm_projecttopic) <- paste("topic", seq(1, dim(wdcm_projecttopic)[2]), sep = "")
-    wdcm_projecttopic$project <- rownames(wdcm_projecttopic)
-    wdcm_projecttopic$projecttype <- projectType(wdcm_projecttopic$project)
-    projectTopicFileName <- paste('wdcm2_projecttopic',
-                                  paste(categoryName, ".csv", sep = ""),
-                                  sep = "_")
-    write.csv(wdcm_projecttopic, projectTopicFileName)
-    
-    # - clear:
-    rm(topicModel); rm(wdcm_projecttopic); rm(wdcm_itemtopic); gc()
-    
-    # - back to etl dir:
-    setwd(etlDir)
+    # - start CV
+    for (j in 1:length(folds)) {
+      
+      trainIx <- setdiff(folds, j)
+      trainTDM <- itemCat[which(foldIx %in% trainIx), ]
+      testTDM <- itemCat[which(foldIx %in% j), ]
+      
+      # - params
+      # - topic range:
+      nTops <- seq(2, 30, by = 1)
+      
+      # - initiate cluster:
+      sfInit(parallel = TRUE, 
+             cpus = 20)
+      # - export
+      sfExport("nTops")
+      sfExport("trainTDM")
+      sfExport("testTDM")
+      sfLibrary(text2vec)
+      
+      # - train in parallel:
+      # - train:
+      print(paste0("---------------- Running CV step: ", j))
+      t1 <- Sys.time()
+      print(paste0("Training starts:", t1))
+      modelPerplexity <- sfClusterApplyLB(nTops,
+                                          function(x) {
+                                            # - define model:
+                                            # - alpha:
+                                            doc_topic_prior = 50/x
+                                            # - beta:
+                                            topic_word_prior = 1/x
+                                            # - lda_model:
+                                            lda_model <- text2vec:::LatentDirichletAllocation$new(n_topics = x,
+                                                                                                  doc_topic_prior,
+                                                                                                  topic_word_prior)
+                                            # - train:
+                                            doc_topic_distr <- lda_model$fit_transform(trainTDM, 
+                                                                                       n_iter = 100,
+                                                                                       convergence_tol = -1, 
+                                                                                       n_check_convergence = 25,
+                                                                                       progressbar = FALSE)
+                                            # - compute perplexity:
+                                            new_doc_topic_distr = lda_model$transform(testTDM)
+                                            return(
+                                              text2vec:::perplexity(testTDM,
+                                                                    topic_word_distribution = lda_model$topic_word_distribution,
+                                                                    doc_topic_distribution = new_doc_topic_distr)
+                                            )
+                                          })
+      
+      # - stop cluster
+      sfStop()
+      
+      print(paste0("Training ends:", Sys.time()))
+      print(paste0("Training took: ", Sys.time() - t1))
+      
+      # - store perplexities from j-th replication:
+      modelFrame <- data.frame(topics = nTops,
+                               perplexity = unlist(modelPerplexity),
+                               fold = j,
+                               stringsAsFactors = F)
+      repl_perplexity[[j]] <- modelFrame
+      print(paste0("---------------- Completed fold: ", j))
+      
+    }
     
   }
+  
+  # - mean perplexity from all folds
+  modelFrame <- rbindlist(repl_perplexity)
+  modelFrame <- modelFrame %>% 
+    group_by(topics) %>% 
+    summarise(meanPerplexity = mean(perplexity))
+  selectedTopics <- modelFrame$topics[which.min(modelFrame$meanPerplexity)]
+  # - toReport:
+  print(paste0("Selected model has ", selectedTopics, "topics; estimating now."))
+  
+  # - fit optimal category LDA model 
+  # - alpha:
+  doc_topic_prior = 50/selectedTopics
+  # - beta:
+  topic_word_prior = 1/selectedTopics
+  t1 <- Sys.time()
+  print(paste0("Optimal category model: Training starts: ", t1))
+  ldaModel <- text2vec:::LatentDirichletAllocation$new(n_topics = selectedTopics,
+                                                       doc_topic_prior,
+                                                       topic_word_prior)
+  # - train:
+  doc_topic_distr <- ldaModel$fit_transform(itemCat,
+                                            n_iter = 1000,
+                                            convergence_tol = -1,
+                                            n_check_convergence = 25,
+                                            progressbar = FALSE)
+  
+  print(paste0("Optimal category model: Training ends :", Sys.time()))
+  print(paste0("Training took: ", Sys.time() - t1))
+  
+  # - collect output matrices:
+  # - clear:
+  rm(itemCat); gc()
+  # - to ml results dir:
+  setwd(mlDir)
+  # - collect matrices:
+  # - wdcm_itemtopic
+  wdcm_itemtopic <- as.data.frame(t(ldaModel$topic_word_distribution))
+  colnames(wdcm_itemtopic) <- paste0("topic", 1:dim(wdcm_itemtopic)[2])
+  itemTopicFileName <- paste('wdcm2_itemtopic',
+                             paste(categoryName, ".csv", sep = ""),
+                             sep = "_")
+  write.csv(wdcm_itemtopic, itemTopicFileName)
+  # - wdcm_projecttopic
+  wdcm_projecttopic <- as.data.frame(doc_topic_distr)
+  colnames(wdcm_projecttopic) <- paste0("topic", 1:dim(wdcm_projecttopic)[2])
+  wdcm_projecttopic$project <- rownames(wdcm_projecttopic)
+  wdcm_projecttopic$projecttype <- projectType(wdcm_projecttopic$project)
+  projectTopicFileName <- paste('wdcm2_projecttopic',
+                                paste(categoryName, ".csv", sep = ""),
+                                sep = "_")
+  write.csv(wdcm_projecttopic, projectTopicFileName)
+
+  # - toReport
+  print("=====================================================================")
   
 }
 
@@ -253,12 +337,12 @@ for (i in 1:length(itemFiles)) {
 ### ----------------------------------------------
 # - to runtime Log:
 print("STEP: Semantic Modeling Phase: t-SNE 2D MAPS")
-setwd(outDir)
+setwd(mlDir)
 projectFiles <- list.files()
 projectFiles <- projectFiles[grepl("^wdcm2_projecttopic", projectFiles)]
-tsne_theta <- as.numeric(params$ml$tSNE_Theta)
-tsne_perplexity <- as.numeric(params$ml$tSNE_Perplexity)
 for (i in 1:length(projectFiles)) {
+  # - toReport:
+  print(paste0("tSNE reduction for: ", projectFiles[i], " happening now."))
   # filename:
   fileName <- strsplit(projectFiles[i], split = ".", fixed = T)[[1]][1]
   fileName <- strsplit(fileName, split = "_", fixed = T)[[1]][3]
@@ -276,18 +360,53 @@ for (i in 1:length(projectFiles)) {
   projectDist <- distHellinger(as.matrix(projectTopics))
   
   # - t-SNE 2D map
-  tsneProject <- Rtsne(projectDist,
-                       theta = tsne_theta,
-                       is_distance = T,
-                       tsne_perplexity = 10)
-  # - store:
-  tsneProject <- as.data.frame(tsneProject$Y)
-  colnames(tsneProject) <- paste("D", seq(1:dim(tsneProject)[2]), sep = "")
-  tsneProject$project <- rownames(projectTopics)
-  tsneProject$projecttype <- projectType(tsneProject$project)
-  write.csv(tsneProject, fileName)
-  # - clear:
-  rm(projectTopics); rm(projectDist); rm(tsneProject)
+  tSNE_PerplexityInit <- tSNE_Perplexity
+  tSNE_flag <- FALSE
+  repeat {
+    print(paste0("-- Attempt tSNE reduction for: ", projectFiles[i], " happening now."))
+    tsneProject <- tryCatch({
+      Rtsne(projectDist,
+            pca = FALSE,
+            theta = tsne_theta,
+            is_distance = T,
+            tsne_perplexity = tSNE_PerplexityInit)
+    }, 
+    error = function(condition) {
+      return(NULL)
+    })
+    if (!is.null(tsneProject)) {
+      tSNE_flag <- TRUE
+      break
+    } else {
+      tSNE_PerplexityInit <- tSNE_PerplexityInit - 1
+      print(paste0("-- Decrease perplexity to: ", tSNE_PerplexityInit, "; retry."))
+    }
+    if (tSNE_PerplexityInit == 0) {
+      break
+    }
+  }
+  
+  # - if tSNE worked, store:
+  if (tSNE_flag) {
+    # - store:
+    tsneProject <- as.data.frame(tsneProject$Y)
+    colnames(tsneProject) <- paste("D", seq(1:dim(tsneProject)[2]), sep = "")
+    tsneProject$project <- rownames(projectTopics)
+    tsneProject$projecttype <- projectType(tsneProject$project)
+    write.csv(tsneProject, fileName)
+    # - clear:
+    rm(projectTopics); rm(projectDist); rm(tsneProject)
+  } else {
+    # - if tSNE did not work, fallback: PCA
+    # - toReport:
+    print(paste0("tSNA FAILED: fallback to 2D PCA for: ", projectFiles[i]))
+    pcaSolution <- prcomp(projectDist, center = TRUE, scale = TRUE)
+    pcaSolution <- as.data.frame(pcaSolution$x[, 1:2])
+    colnames(pcaSolution) <- paste("D", seq(1:dim(pcaSolution)[2]), sep = "")
+    pcaSolution$project <- rownames(projectTopics)
+    pcaSolution$projecttype <- projectType(pcaSolution$project)
+    write.csv(pcaSolution, fileName)
+  }
 }
 
 ### --- {visNetwork} graphs from wdcm2_projectttopic files: projects similarity structure
@@ -304,7 +423,10 @@ for (i in 1:length(projectFiles)) {
                             stringsAsFactors = F)
   projectTopics$project <- NULL
   projectTopics$projecttype <- NULL
-
+  
+  # - toReport
+  print(paste0("{visNetwork} data structrues for: ", projectFiles[i]))
+  
   # - Distance space, metric: Hellinger
   projectDist <- distHellinger(as.matrix(projectTopics))
   rownames(projectDist) <- rownames(projectTopics)
@@ -346,60 +468,78 @@ for (i in 1:length(projectFiles)) {
 
 ### --- wdcm2_project_category_2dmap
 ### --- used on: Overview Dashboard
-
 # - fetch wdcm2_project_category:
 # - wrangle wdcm2_project_category for t-SNE:
+# - toReport
+print("Produce: wdcm2_project_category_2dmap for the Overview dashboard.")
 setwd(etlDir)
-tsneData <- read.csv('wdcm_project_category.csv', 
-                     header = T,
-                     check.names = F,
-                     stringsAsFactors = F)
-tsneData <- spread(tsneData,
+# - compose wdcm_project_category.csv
+lF <- list.files()
+lF <- lF[grepl("^wdcm_project_category_", lF)]
+lF <- lF[!grepl("^wdcm_project_category_item", lF)]
+wdcm_project_category <- lapply(lF, fread)
+wdcm_project_category <- rbindlist(wdcm_project_category)
+wdcm_project_category <- wdcm_project_category[, c('eu_project', 'category', 'eu_count')]
+wEmptyProject <- 
+  which(is.na(wdcm_project_category$eu_project) | 
+          (wdcm_project_category$eu_project=="") | 
+          (wdcm_project_category$eu_project==" "))
+if (length(wEmptyProject) > 0) {
+  wdcm_project_category <- wdcm_project_category[-wEmptyProject, ]
+}
+write.csv(wdcm_project_category, "wdcm_project_category.csv")
+# - dimensionality reduction
+tsneData <- spread(wdcm_project_category,
                    key = category,
-                   value = eu_count, 
+                   value = eu_count,
                    fill = 0)
 rownames(tsneData) <- tsneData$eu_project
 tsneData$eu_project <- NULL
-tsneData <- as.matrix(dist(tsneData, method = "euclidean"))
 projects <- rownames(tsneData)
+tsneData <- as.matrix(dist(tsneData, method = "euclidean"))
 # - t-SNE 2D reduction:
-tsneData <- Rtsne(tsneData, theta = .5, is_distance = T)
+tsneData <- Rtsne(tsneData, 
+                  theta = tsne_theta, 
+                  tsne_perplexity = tSNE_Perplexity, 
+                  is_distance = T)
 tsneData <- as.data.frame(tsneData$Y)
 tsneData$projects <- projects
 tsneData$projecttype <- projectType(tsneData$projects)
 colnames(tsneData)[1:2] <- c('D1', 'D2')
-setwd(outDir)
+setwd(mlDir)
 write.csv(tsneData, 'wdcm_project_category_2dmap.csv')
 
 ### --- wdcm2_category_project_2dmap
 ### --- used on: Overview Dashboard
-
 # - fetch wdcm2_project_category:
-# - wrangle wdcm2_project_category for t-SNE:
+# - wrangle wdcm2_project_category for PCA:
+# - toReport
+print("Produce: wdcm2_category_project_2dmap for the Overview dashboard.")
 setwd(etlDir)
-tsneData <- read.csv('wdcm_project_category.csv', 
-                     header = T,
-                     check.names = F,
-                     stringsAsFactors = F)
-tsneData <- spread(tsneData,
-                   key = category,
-                   value = eu_count, 
-                   fill = 0)
-rownames(tsneData) <- tsneData$eu_project
-tsneData$eu_project <- NULL
-tsneData <- as.matrix(dist(t(tsneData), method = "euclidean"))
-category <- rownames(tsneData)
-# - t-SNE 2D reduction:
-tsneData <- Rtsne(tsneData, theta = .5, is_distance = T, perplexity = 4)
-tsneData <- as.data.frame(tsneData$Y)
-tsneData$category <- category
-colnames(tsneData)[1:2] <- c('D1', 'D2')
-setwd(outDir)
-write.csv(tsneData, 'wdcm2_category_project_2dmap.csv')
+pcaData <- read.csv('wdcm_project_category.csv',
+                    header = T,
+                    check.names = F,
+                    row.names = 1,
+                    stringsAsFactors = F)
+pcaData <- spread(pcaData,
+                  key = eu_project,
+                  value = eu_count,
+                  fill = 0)
+rownames(pcaData) <- pcaData$category
+pcaData$category <- NULL
+categories <- rownames(pcaData)
+pcaData <- as.matrix(dist(pcaData, method = "euclidean"))
+# - PCA 2D reduction:
+pcaSolution <- prcomp(pcaData, center = TRUE, scale = TRUE)
+pcaSolution <- as.data.frame(pcaSolution$x[, 1:2])
+pcaSolution <- as.data.frame(pcaSolution)
+pcaSolution$category <- categories
+colnames(pcaSolution)[1:2] <- c('D1', 'D2')
+setwd(mlDir)
+write.csv(pcaSolution, 'wdcm2_category_project_2dmap.csv')
 
 # - GENERAL TIMING:
 generalT2 <- Sys.time()
 # - GENERAL TIMING REPORT:
 print(paste0("--- wdcmModule_ML.R UPDATE DONE IN: ", 
              generalT2 - generalT1, "."))
-

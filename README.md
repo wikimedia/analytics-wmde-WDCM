@@ -14,4 +14,4 @@ WDCM Wikitech page: https://wikitech.wikimedia.org/wiki/Wikidata_Concepts_Monito
 WDCM User Feedback page: https://www.wikidata.org/wiki/Wikidata:Wikidata_Concepts_Monitor/UserFeedback
 ---
 
-WDCM is developed by Goran S. Milovanovic, Data Analyst, WMDE, under the contract between Goran Milovanovic PR Data Kolektiv and WMDE.
+WDCM is developed by Goran S. Milovanovic, Data Scientist, WMDE, under the contract between Goran Milovanovic PR Data Kolektiv and WMDE, 2017 - 2020.

@@ -144,6 +144,7 @@ if (length(list.files(etlDirGeo)) > 1) {
 # - Kerberos init
 system(command = 'sudo -u analytics-privatedata kerberos-run-command analytics-privatedata hdfs dfs -ls', 
        wait = T)
+
 # - Run PySpark ETL
 system(command = paste0('sudo -u analytics-privatedata spark2-submit ', 
                         sparkMaster, ' ',

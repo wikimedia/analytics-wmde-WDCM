@@ -60,8 +60,7 @@ import json
 
 
 ### --- parse WDCM parameters
-# - where is the script being run from:
-parsFile = str(sys.path[0]) + "/wdcmConfig.xml"
+parsFile = "/home/goransm/Analytics/WDCM/WDCM_Scripts/wdcmConfig.xml"
 # - parse wdcmConfig.xml
 tree = ET.parse(parsFile)
 root = tree.getroot()
@@ -71,11 +70,6 @@ params = dict(zip(k, v))
 ### --- dir structure and params
 # - HDFS dir
 hdfsDir = params['biases_hdfsDir']
-# - WD Dump JSON file in hdfs
-hdfsDump = params['wdDumpPATH']
-# - wmf.wikidata_entity table snapshot
-wikidataEntitySnapshot = params['wikidataEntitySnapshot']
-
 
 ### --- Init Spark
 # - Spark Session
@@ -87,6 +81,16 @@ sc = SparkSession\
 # - SQL Context
 sqlContext = pyspark.SQLContext(sc)
 
+### --- get wmf.wikidata_entity snapshot
+snaps = sqlContext.sql('SHOW PARTITIONS wmf.wikidata_entity')
+snaps = snaps.toPandas()
+wikidataEntitySnapshot = snaps.tail(1)['partition'].to_string()
+wikidataEntitySnapshot = wikidataEntitySnapshot[-10:]
+### --- get wmf.mediawiki_history snapshot
+snaps = sqlContext.sql('SHOW PARTITIONS wmf.mediawiki_history')
+snaps = snaps.toPandas()
+mwwikiSnapshot = snaps.tail(1)['partition'].to_string()
+mwwikiSnapshot = mwwikiSnapshot[-7:]
 
 ### ---------------------------------------------------------------------------
 ### --- Import WD JSON dump from hdfs

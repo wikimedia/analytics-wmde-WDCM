@@ -83,9 +83,7 @@ startTime = datetime.datetime.now()
 print("WDCM ETL Module start at: " + str(startTime))
 
 ### --- parse WDCM parameters
-# - where is the script being run from:
-parsFile = str(sys.path[0]) + "/wdcmConfig.xml"
-parsFile = "/home/goransm/Analytics/WDCM/WDCM_Scripts/" + "/wdcmConfig.xml"
+parsFile = "/home/goransm/Analytics/WDCM/WDCM_Scripts/wdcmConfig.xml"
 # - parse wdcmConfig.xml
 tree = ET.parse(parsFile)
 root = tree.getroot()
@@ -110,8 +108,6 @@ hdfsPATH_WDCMCollectedItems = params['hdfsPATH_WDCMCollectedItems']
 hdfsPATH_WDCMGeoCollectedItems = params['hdfsPATH_WDCMCollectedGeoItems']
 hdfsPATH_WDCM_ETL = params['hdfsPATH_WDCM_ETL']
 hdfsPATH_WDCM_ETL_GEO = params['hdfsPATH_WDCM_ETL_GEO']
-wdDumpPATH = params['wdDumpPATH']
-wikidataEntitySnapshot = params['wikidataEntitySnapshot']
 
 ### --- Init Spark
 
@@ -124,6 +120,17 @@ sc = SparkSession\
 
 # - SQL Context
 sqlContext = pyspark.SQLContext(sc)
+
+### --- get wmf.wikidata_entity snapshot
+snaps = sqlContext.sql('SHOW PARTITIONS wmf.wikidata_entity')
+snaps = snaps.toPandas()
+wikidataEntitySnapshot = snaps.tail(1)['partition'].to_string()
+wikidataEntitySnapshot = wikidataEntitySnapshot[-10:]
+### --- get wmf.mediawiki_history snapshot
+snaps = sqlContext.sql('SHOW PARTITIONS wmf.mediawiki_history')
+snaps = snaps.toPandas()
+mwwikiSnapshot = snaps.tail(1)['partition'].to_string()
+mwwikiSnapshot = mwwikiSnapshot[-7:]
 
 ### --- Produce WDCM_MainTableRaw
 

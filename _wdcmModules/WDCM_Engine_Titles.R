@@ -563,7 +563,7 @@ for (i in 1:length(lFtmat)) {
     ####### ----------- PARALLEL w. {snowfall} STARTS
     
     # - start cluster and export data + package
-    sfInit(parallel = T, cpus = 30)
+    sfInit(parallel = T, cpus = 20)
     sfExport("itemCat")
     sfLibrary(maptpx)
 

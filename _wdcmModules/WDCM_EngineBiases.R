@@ -234,8 +234,10 @@ genderProjectData <- dataSet %>%
 genderProjectData <- genderProjectData[!duplicated(genderProjectData), ]
 genderProjectData <- genderProjectData %>% 
   dplyr::select(gender, project, usage)
-genderProjectData <- 
-  genderProjectData[(genderProjectData$gender %in% c(gender$male, gender$female)), ]
+w1 <- which(genderProjectData$gender == gender$male)
+w2 <- which(genderProjectData$gender == gender$female)
+w <- unique(c(w1, w2))
+genderProjectData <- genderProjectData[w, ]
 genderProjectData <- genderProjectData %>% 
   dplyr::group_by(project, gender) %>% 
   dplyr::summarise(usage = sum(usage)) %>% 
@@ -264,8 +266,11 @@ print(paste0("Gender x Occupation: ", Sys.time()))
 genderOccupationData <- dataSet %>% 
   dplyr::select(gender, occupation) %>% 
   dplyr::filter(occupation != "")
+w1 <- which(genderOccupationData$gender == gender$male)
+w2 <- which(genderOccupationData$gender == gender$female)
+w <- unique(c(w1, w2))
 genderOccupationData <- 
-  genderOccupationData[(genderOccupationData$gender %in% c(gender$male, gender$female)), ]
+  genderOccupationData[w, ]
 genderOccupationData <- genderOccupationData %>% 
   dplyr::group_by(occupation, gender) %>% 
   dplyr::summarise(usage = n())
@@ -313,9 +318,13 @@ print(paste0("Gender vs Geography Tab: ", Sys.time()))
 geoItems <- dataSet %>% 
   dplyr::select(item, gender, project, usage, lat, lon)
 geoItems <- geoItems[!duplicated(geoItems), ]
-geoItems <- geoItems[geoItems$gender %in% c(gender$male, gender$female), ]
+w1 <- which(geoItems$gender == gender$male)
+w2 <- which(geoItems$gender == gender$female)
+w <- unique(c(w1, w2))
+geoItems <- geoItems[w, ]
 
 # - geo-localized data for: gender == male & gender == female
+geoItems <- as.data.frame(geoItems)
 geo_M <- geoItems[geoItems$gender %in% gender$male, ]
 geo_F <- geoItems[geoItems$gender %in% gender$female, ]
 # - sum: usage
@@ -503,6 +512,7 @@ write.csv(mfPropProject,
 print(paste0("global MF distribution: ", Sys.time()))
 genItems <- dataSet %>% 
   dplyr::select(item, gender, project, usage)
+genItems <- as.data.frame(genItems)
 genItems <- genItems[!duplicated(genItems), ]
 fGenItems <- genItems[genItems$gender == gender$female, ]
 mGenItems <- genItems[genItems$gender == gender$male, ]
@@ -552,7 +562,7 @@ ggplot(genItems, aes(x = rank,
                    color = gender,
                    group = gender)) +
   geom_line(size = .25) +
-  scale_color_manual(values = c('indianred1', 'deepskyblue')) +
+  scale_color_manual(values = c('green', 'cadetblue3')) +
   scale_x_continuous(labels = comma) +
   theme_minimal() +
   ylab("log(Wikidata Usage)") + xlab("Rank") +
@@ -581,7 +591,7 @@ ggplot(genItems, aes(x = gender,
                      color = gender,
                      group = gender)) +
   geom_jitter(aes(alpha = usage), size = .25, width = .1) +
-  scale_color_manual(values = c('indianred1', 'deepskyblue')) +
+  scale_color_manual(values = c('lightgreen', 'cadetblue3')) +
   scale_alpha(guide = 'none') +
   theme_minimal() +
   ylab("Wikidata Usage") + xlab("gender") +
@@ -647,7 +657,7 @@ ggplot(pFrame, aes(x = p, y = L, color = gender)) +
                yend = 1, size = .1, 
                color = "black", 
                linetype = "dashed") +
-  scale_color_manual(values = c("indianred1", "deepskyblue")) +
+  scale_color_manual(values = c("green", "cadetblue3")) +
   ggtitle(paste0("Wikidata Usage Lorenz Curves\n",
                  "Gini(F) = ", giniF, ", Gini(M) = ", giniM)) +
   xlab("Proportion of Items") + ylab("Proportion of Wikidata Usage") +

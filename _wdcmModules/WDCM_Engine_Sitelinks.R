@@ -559,7 +559,7 @@ for (i in 1:length(lFtmat)) {
     ####### ----------- PARALLEL w. {snowfall} STARTS
     
     # - start cluster and export data + package
-    sfInit(parallel = T, cpus = 30)
+    sfInit(parallel = T, cpus = 20)
     sfExport("itemCat")
     sfLibrary(maptpx)
 
@@ -1387,8 +1387,6 @@ for (i in 1:length(lF)) {
 # - toReport
 system(command = paste0('cp ', localDataDir, '* ', publicDir), 
        wait = T)
-
-localDataDir
 
 # - update string
 write(paste0("Last updated on: ", Sys.time()), "wikipediaSitelinksUpdateString.txt")

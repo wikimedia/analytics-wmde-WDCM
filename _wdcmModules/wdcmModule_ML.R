@@ -66,7 +66,7 @@ library(snowfall)
 library(text2vec)
 library(Rtsne)
 ### NOTE: replace proxy Hellinger Distrance
-#-  library(proxy)
+library(proxy)
 library(topicmodels)
 # - matrix
 library(Matrix)
@@ -201,7 +201,7 @@ for (i in 1:length(itemFiles)) {
     # - prepare subsets for 3-fold cross-validation
     foldIx <- sample(1:3, dim(itemCat)[1], replace = T)
     folds <- 1:3
-    
+      
     # - store perplexity
     repl_perplexity <- vector(mode = "list", length = length(folds))
     
@@ -218,7 +218,8 @@ for (i in 1:length(itemFiles)) {
       
       # - initiate cluster:
       sfInit(parallel = TRUE, 
-             cpus = 20)
+             cpus = 20,
+             type = "SOCK")
       # - export
       sfExport("nTops")
       sfExport("trainTDM")
@@ -232,28 +233,47 @@ for (i in 1:length(itemFiles)) {
       print(paste0("Training starts:", t1))
       modelPerplexity <- sfClusterApplyLB(nTops,
                                           function(x) {
-                                            # - define model:
-                                            # - alpha:
-                                            doc_topic_prior = 50/x
-                                            # - beta:
-                                            topic_word_prior = 1/x
-                                            # - lda_model:
-                                            lda_model <- text2vec:::LatentDirichletAllocation$new(n_topics = x,
-                                                                                                  doc_topic_prior,
-                                                                                                  topic_word_prior)
-                                            # - train:
-                                            doc_topic_distr <- lda_model$fit_transform(trainTDM, 
-                                                                                       n_iter = 100,
-                                                                                       convergence_tol = -1, 
-                                                                                       n_check_convergence = 25,
-                                                                                       progressbar = FALSE)
-                                            # - compute perplexity:
-                                            new_doc_topic_distr = lda_model$transform(testTDM)
-                                            return(
-                                              text2vec:::perplexity(testTDM,
-                                                                    topic_word_distribution = lda_model$topic_word_distribution,
-                                                                    doc_topic_distribution = new_doc_topic_distr)
-                                            )
+                                              # - define model:
+                                              # - alpha:
+                                              doc_topic_prior = 50/x
+                                              # - beta:
+                                              topic_word_prior = 1/x
+                                              # - lda_model:
+                                              lda_model <- text2vec:::LatentDirichletAllocation$new(n_topics = x,
+                                                                                                    doc_topic_prior,
+                                                                                                    topic_word_prior)
+                                              # - train:
+                                              doc_topic_distr <- tryCatch({
+                                                lda_model$fit_transform(trainTDM,
+                                                                        n_iter = 100,
+                                                                        convergence_tol = -1, 
+                                                                        n_check_convergence = 25,
+                                                                        progressbar = FALSE)
+                                              }, 
+                                              error = function(condition) {
+                                                NULL
+                                              })
+                                              
+                                              # - if !is.null(doc_topic_distr), compute perplexity:
+                                              if (!is.null(doc_topic_distr)) {
+                                                new_doc_topic_distr <- tryCatch({
+                                                  lda_model$transform(testTDM)
+                                                }, 
+                                                error = function(condition) {
+                                                  NULL
+                                                })
+                                                # - if !is.null(new_doc_topic_distr), compute perplexity:
+                                                if (!is.null(new_doc_topic_distr)) {
+                                                  text2vec:::perplexity(testTDM,
+                                                                        topic_word_distribution = lda_model$topic_word_distribution,
+                                                                        doc_topic_distribution = new_doc_topic_distr)                                                  
+                                                } else {
+                                                  return(NULL)
+                                                }
+                                                
+                                                } else {
+                                                  return(NULL)
+                                                  }
                                           })
       
       # - stop cluster

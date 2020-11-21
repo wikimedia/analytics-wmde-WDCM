@@ -78,6 +78,10 @@ sc = SparkSession\
     .appName("Wikidata Concepts Monitor Biases ETL")\
     .enableHiveSupport()\
     .getOrCreate()
+
+# - Spark Session Log Level: INFO
+sc.sparkContext.setLogLevel("INFO")    
+
 # - SQL Context
 sqlContext = pyspark.SQLContext(sc)
 

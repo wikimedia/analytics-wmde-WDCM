@@ -59,7 +59,7 @@ import requests
 import json
 
 
-### --- parse WDCM parameters
+### --- parse WDCM parameters: wdcmConfig.xml
 parsFile = "/home/goransm/Analytics/WDCM/WDCM_Scripts/wdcmConfig.xml"
 # - parse wdcmConfig.xml
 tree = ET.parse(parsFile)

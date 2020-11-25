@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<parameters>
+    <!-- etl: ETL parameters for pyspark -->
+    <etl>
+      <!-- topNpopularWDIitems: how many most popular WD items to extract -->
+      <topNpopularWDIitems>100000</topNpopularWDIitems>
+      <!-- topNpopularCategoryWDItems: how many most popular WD items per category to extract -->
+      <topNpopularCategoryWDItems>10000</topNpopularCategoryWDItems>
+      <!-- NItemsTFMatrix: how many most popular WD items per category enters the TF matrix -->
+      <NItemsTFMatrix>10000</NItemsTFMatrix>
+    </etl>
+    <!-- ml: Machine Learning parameters -->
+    <ml>
+        <!-- lda_NItems: how many items from the TF matrix do we model -->
+        <lda_NItems>1000</lda_NItems>
+        <!-- tSNE_Theta: t-SNE Theta paramater -->
+        <tSNE_Theta>0</tSNE_Theta>
+        <!-- tSNE_Perplexity: starting t-SNE Perplexity paramater -->
+        <tSNE_Perplexity>10</tSNE_Perplexity>
+    </ml>
+    <!-- spark: spark2-submit parameters -->
+    <spark>
+      <!-- master: master -->
+      <master>--master yarn</master>
+      <!-- deploy_mode: deploy_mode -->
+      <deploy_mode>--deploy-mode client</deploy_mode>
+      <!-- num_executors: num_executors -->
+      <num_executors>--num-executors 100</num_executors>
+      <!-- driver_memory: driver_memory -->
+      <driver_memory>--driver-memory 20000m</driver_memory>
+      <!-- executor_memory: executor_memory -->
+      <executor_memory>--executor-memory 20000m</executor_memory>
+      <!-- executor_cores: executor_cores -->
+      <executor_cores>--executor-cores 8</executor_cores>
+    </spark>
+    <!-- Biases: a set of parameters for the WDCM Biases system -->
+    <biases>
+      <spark>
+        <!-- master: master -->
+        <biases_master>--master yarn</biases_master>
+        <!-- deploy_mode: deploy_mode -->
+        <biases_deploy_mode>--deploy-mode client</biases_deploy_mode>
+        <!-- num_executors: num_executors -->
+        <biases_num_executors>--num-executors 100</biases_num_executors>
+        <!-- driver_memory: driver_memory -->
+        <biases_driver_memory>--driver-memory 30000m</biases_driver_memory>
+        <!-- executor_memory: executor_memory -->
+        <biases_executor_memory>--executor-memory 20000m</biases_executor_memory>
+        <!-- executor_cores: executor_cores -->
+        <biases_executor_cores>--executor-cores 8</biases_executor_cores>
+      </spark>
+    </biases>
+</parameters>

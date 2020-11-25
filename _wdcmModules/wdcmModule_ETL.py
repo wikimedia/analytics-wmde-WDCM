@@ -82,7 +82,7 @@ startTime = datetime.datetime.now()
 # - to runtime log:
 print("WDCM ETL Module start at: " + str(startTime))
 
-### --- parse WDCM parameters
+### --- parse WDCM parameters: wdcmConfig.xml
 parsFile = "/home/goransm/Analytics/WDCM/WDCM_Scripts/wdcmConfig.xml"
 # - parse wdcmConfig.xml
 tree = ET.parse(parsFile)
@@ -90,17 +90,13 @@ root = tree.getroot()
 k = [elem.tag for elem in root.iter()]
 v = [x.text for x in root.iter()]
 params = dict(zip(k, v))
-
 ### --- dir structure and params
 tempDir = params['tempDir']
 dataDir = params['etlDir']
 dataGeoDir = params['etlDirGeo']
 logDir = params['logDir']
 publicDir = params['publicDir']
-topNpopularWDIitems = params['topNpopularWDIitems']
-topNpopularCategoryWDItems = params['topNpopularCategoryWDItems']
 itemsDir = params['itemsDir']
-NItemsTFMatrix = params['NItemsTFMatrix']
 http_proxy = params['http_proxy']
 https_proxy = params['https_proxy']
 hdfsDir_WDCMCollectedItemsDir = params['hdfsCollectedItemsDir']
@@ -108,6 +104,19 @@ hdfsPATH_WDCMCollectedItems = params['hdfsPATH_WDCMCollectedItems']
 hdfsPATH_WDCMGeoCollectedItems = params['hdfsPATH_WDCMCollectedGeoItems']
 hdfsPATH_WDCM_ETL = params['hdfsPATH_WDCM_ETL']
 hdfsPATH_WDCM_ETL_GEO = params['hdfsPATH_WDCM_ETL_GEO']
+
+### --- parse WDCM parameters: wdcmConfig_Deployment.xml
+parsFile = "/home/goransm/Analytics/WDCM/WDCM_Scripts/wdcmConfig_Deployment.xml"
+# - parse wdcmConfig.xml
+tree = ET.parse(parsFile)
+root = tree.getroot()
+k = [elem.tag for elem in root.iter()]
+v = [x.text for x in root.iter()]
+params = dict(zip(k, v))
+### --- ML/ETL parameters
+topNpopularWDIitems = params['topNpopularWDIitems']
+topNpopularCategoryWDItems = params['topNpopularCategoryWDItems']
+NItemsTFMatrix = params['NItemsTFMatrix']
 
 ### --- Init Spark
 

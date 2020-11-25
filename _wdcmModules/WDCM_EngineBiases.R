@@ -60,7 +60,7 @@ library(ineq)
 library(XML)
 
 ### --- parameters
-### --- Read WDCM paramereters
+### --- Read WDCM paramereters: wdcmConfig.xml
 # - toLog
 print(paste0("Read WDCM params: ", Sys.time()))
 # - fPath: where the scripts is run from?
@@ -73,24 +73,6 @@ fPath <- paste(
   sep = "")
 params <- xmlParse(paste0(fPath, "wdcmConfig.xml"))
 params <- xmlToList(params)
-
-# - spark2-submit parameters:
-# - toLog
-print(paste0("Set Spark params: ", Sys.time()))
-sparkMaster <- params$biases$spark$biases_master
-sparkDeployMode <- params$biases$spark$biases_deploy_mode
-sparkNumExecutors <- params$biases$spark$biases_num_executors
-sparkDriverMemory <- params$biases$spark$biases_driver_memory
-sparkExecutorMemory <- params$biases$spark$biases_executor_memory
-sparkExecutorCores <- params$biases$spark$biases_executor_cores
-
-### --- Set proxy
-# - toLog
-print(paste0("Set proxy params: ", Sys.time()))
-Sys.setenv(
-  http_proxy = params$general$http_proxy,
-  https_proxy = params$general$http_proxy)
-
 ### --- Directories
 # - toLog
 print(paste0("Set directory params: ", Sys.time()))
@@ -105,6 +87,25 @@ tempDataDir <- params$biases$biases_tempDataDir
 # - published-datasets dir, maps onto
 # - https://analytics.wikimedia.org/datasets/wdcm/
 pubDataDir <- params$biases$biases_pubDataDir
+
+# - spark2-submit parameters: wdcmConfig_Deployment.xml
+paramsDeployment <- xmlParse(paste0(fPath, "wdcmConfig.xml"))
+paramsDeployment <- xmlToList(paramsDeployment)
+# - toLog
+print(paste0("Set Spark params: ", Sys.time()))
+sparkMaster <- paramsDeployment$biases$spark$biases_master
+sparkDeployMode <- paramsDeployment$biases$spark$biases_deploy_mode
+sparkNumExecutors <- paramsDeployment$biases$spark$biases_num_executors
+sparkDriverMemory <- paramsDeployment$biases$spark$biases_driver_memory
+sparkExecutorMemory <- paramsDeployment$biases$spark$biases_executor_memory
+sparkExecutorCores <- paramsDeployment$biases$spark$biases_executor_cores
+
+### --- Set proxy
+# - toLog
+print(paste0("Set proxy params: ", Sys.time()))
+Sys.setenv(
+  http_proxy = params$general$http_proxy,
+  https_proxy = params$general$http_proxy)
 
 # - clear tempDataDir
 lF <- list.files(tempDataDir)

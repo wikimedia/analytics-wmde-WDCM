@@ -89,7 +89,7 @@ projectType <- function(projectName) {
   }))
 }
 
-### --- Read WDCM paramereters
+### --- Read WDCM paramereters: wdcmConfig.xml
 # - fPath: where the scripts is run from?
 fPath <- as.character(commandArgs(trailingOnly = FALSE)[4])
 fPath <- gsub("--file=", "", fPath, fixed = T)
@@ -114,10 +114,13 @@ mlDir <- params$general$mlDir
 mlInputDir <- params$general$mlInputDir
 # - production published-datasets:
 dataDir <- params$general$publicDir
-### --- ML params
-lda_NItems <- as.numeric(params$ml$lda_NItems)
-tSNE_Perplexity <- as.numeric(params$ml$tSNE_Perplexity)
-tsne_theta <- as.numeric(params$ml$tSNE_Theta)
+
+### --- ML params: wdcmConfig_Deployment.xml
+paramsDeployment <- xmlParse(paste0(fPath, "wdcmConfig.xml"))
+paramsDeployment <- xmlToList(paramsDeployment)
+lda_NItems <- as.numeric(paramsDeployment$ml$lda_NItems)
+tSNE_Perplexity <- as.numeric(paramsDeployment$ml$tSNE_Perplexity)
+tsne_theta <- as.numeric(paramsDeployment$ml$tSNE_Theta)
 
 ### ----------------------------------------------
 ### --- reshape project-item matrices for LDA

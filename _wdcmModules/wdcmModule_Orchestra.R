@@ -48,7 +48,7 @@ print(paste("--- wdcmModule_Orchestra.R RUN STARTED ON:",
 # - GENERAL TIMING:
 generalT1 <- Sys.time()
 
-### --- Read WDCM paramereters
+### --- Read WDCM paramereters: wdcmConfig.xml
 # - fPath: where the scripts is run from?
 fPath <- as.character(commandArgs(trailingOnly = FALSE)[4])
 fPath <- gsub("--file=", "", fPath, fixed = T)
@@ -73,18 +73,24 @@ etlDir <- params$general$etlDir
 etlDirGeo <- params$general$etlDirGeo
 mlDir <- params$general$mlDir
 tempDir <- params$general$tempDir
+
 # - production published-datasets:
 dataDir <- params$general$publicDir
+
 # - hdfs ETL paths
 hdfsPATH_WDCM_ETL <- params$general$hdfsPATH_WDCM_ETL
 hdfsWDCM_ETL_GEODir <- params$general$hdfsPATH_WDCM_ETL_GEO
+
+### --- Read WDCM paramereters: wdcmConfig_Deployment.xml
+paramsDeployment <- xmlParse(paste0(fPath, "wdcmConfig_Deployment.xml"))
+paramsDeployment <- xmlToList(paramsDeployment)
 # - spark2-submit parameters:
-sparkMaster <- params$spark$master
-sparkDeployMode <- params$spark$deploy_mode
-sparkNumExecutors <- params$spark$num_executors
-sparkDriverMemory <- params$spark$driver_memory
-sparkExecutorMemory <- params$spark$executor_memory
-sparkExecutorCores <- params$spark$executor_cores
+sparkMaster <- paramsDeployment$spark$master
+sparkDeployMode <- paramsDeployment$spark$deploy_mode
+sparkNumExecutors <- paramsDeployment$spark$num_executors
+sparkDriverMemory <- paramsDeployment$spark$driver_memory
+sparkExecutorMemory <- paramsDeployment$spark$executor_memory
+sparkExecutorCores <- paramsDeployment$spark$executor_cores
 
 ### --------------------------------------------------
 ### --- log Orchestra START:
@@ -148,7 +154,7 @@ system(command = 'sudo -u analytics-privatedata kerberos-run-command analytics-p
 # - Run PySpark ETL
 system(command = paste0('sudo -u analytics-privatedata spark2-submit ', 
                         sparkMaster, ' ',
-                        sparkDeployMode, ' ', 
+                        sparkDeployMode, ' ',
                         sparkNumExecutors, ' ',
                         sparkDriverMemory, ' ',
                         sparkExecutorMemory, ' ',

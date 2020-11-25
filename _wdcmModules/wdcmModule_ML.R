@@ -116,7 +116,7 @@ mlInputDir <- params$general$mlInputDir
 dataDir <- params$general$publicDir
 
 ### --- ML params: wdcmConfig_Deployment.xml
-paramsDeployment <- xmlParse(paste0(fPath, "wdcmConfig.xml"))
+paramsDeployment <- xmlParse(paste0(fPath, "wdcmConfig_Deployment.xml"))
 paramsDeployment <- xmlToList(paramsDeployment)
 lda_NItems <- as.numeric(paramsDeployment$ml$lda_NItems)
 tSNE_Perplexity <- as.numeric(paramsDeployment$ml$tSNE_Perplexity)
@@ -380,7 +380,7 @@ for (i in 1:length(projectFiles)) {
   projectTopics$projecttype <- NULL
   
   # - Distance space, metric: Hellinger
-  projectDist <- distHellinger(as.matrix(projectTopics))
+  projectDist <- topicmodels::distHellinger(as.matrix(projectTopics))
   
   # - t-SNE 2D map
   tSNE_PerplexityInit <- tSNE_Perplexity
@@ -451,7 +451,7 @@ for (i in 1:length(projectFiles)) {
   print(paste0("{visNetwork} data structrues for: ", projectFiles[i]))
   
   # - Distance space, metric: Hellinger
-  projectDist <- distHellinger(as.matrix(projectTopics))
+  projectDist <- topicmodels::distHellinger(as.matrix(projectTopics))
   rownames(projectDist) <- rownames(projectTopics)
   colnames(projectDist) <- rownames(projectTopics)
   

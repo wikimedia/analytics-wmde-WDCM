@@ -90,7 +90,7 @@ sparkDeployMode <- paramsDeployment$spark$deploy_mode
 sparkNumExecutors <- paramsDeployment$spark$num_executors
 sparkDriverMemory <- paramsDeployment$spark$driver_memory
 sparkExecutorMemory <- paramsDeployment$spark$executor_memory
-sparkExecutorCores <- paramsDeployment$spark$executor_cores
+sparkConfigDynamic <- paramsDeployment$spark$config
 
 ### --------------------------------------------------
 ### --- log Orchestra START:
@@ -158,7 +158,7 @@ system(command = paste0('sudo -u analytics-privatedata spark2-submit ',
                         sparkNumExecutors, ' ',
                         sparkDriverMemory, ' ',
                         sparkExecutorMemory, ' ',
-                        sparkExecutorCores, ' ',
+                        sparkConfigDynamic, ' ',
                         paste0(fPathPython, 'wdcmModule_ETL.py')
                         ),
        wait = T)

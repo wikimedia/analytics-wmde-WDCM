@@ -98,7 +98,7 @@ sparkDeployMode <- paramsDeployment$biases$spark$biases_deploy_mode
 sparkNumExecutors <- paramsDeployment$biases$spark$biases_num_executors
 sparkDriverMemory <- paramsDeployment$biases$spark$biases_driver_memory
 sparkExecutorMemory <- paramsDeployment$biases$spark$biases_executor_memory
-sparkExecutorCores <- paramsDeployment$biases$spark$biases_executor_cores
+sparkConfigDynamic <- paramsDeployment$biases$spark$biases_config
 
 ### --- Set proxy
 # - toLog
@@ -167,7 +167,7 @@ system(command = paste0('sudo -u analytics-privatedata spark2-submit ',
                         sparkNumExecutors, ' ',
                         sparkDriverMemory, ' ',
                         sparkExecutorMemory, ' ',
-                        sparkExecutorCores, ' ',
+                        sparkConfigDynamic, ' ',
                         paste0(fPath, 'wdcmModule_Biases_ETL.py')
                         ),
        wait = T)

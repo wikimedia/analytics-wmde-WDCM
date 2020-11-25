@@ -32,6 +32,8 @@
       <executor_memory>--executor-memory 20000m</executor_memory>
       <!-- executor_cores: executor_cores -->
       <executor_cores>--executor-cores 8</executor_cores>
+      <!-- config for dynamic allocation -->
+      <config>--conf spark.dynamicAllocation.maxExecutors=100</config>
     </spark>
     <!-- Biases: a set of parameters for the WDCM Biases system -->
     <biases>
@@ -48,6 +50,8 @@
         <biases_executor_memory>--executor-memory 20000m</biases_executor_memory>
         <!-- executor_cores: executor_cores -->
         <biases_executor_cores>--executor-cores 8</biases_executor_cores>
+        <!-- config for dynamic allocation -->
+        <biases_config>--conf spark.dynamicAllocation.maxExecutors=100</biases_config>
       </spark>
     </biases>
 </parameters>
